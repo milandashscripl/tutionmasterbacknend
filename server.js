@@ -4,7 +4,7 @@ dotenv.config();
 import express from "express";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
-const cors = require("cors");
+import cors  from "cors";
 
 app.use(cors({
   origin: "*",   // allow all (for now)

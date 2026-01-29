@@ -2,19 +2,15 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
+    name: String,
+    email: { type: String, unique: true },
+    provider: {
       type: String,
+      enum: ["google", "facebook"],
       required: true,
     },
-    phone: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    isVerified: {
-      type: Boolean,
-      default: false,
-    },
+    providerId: { type: String, required: true },
+    avatar: String,
   },
   { timestamps: true }
 );

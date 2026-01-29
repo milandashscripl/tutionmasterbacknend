@@ -1,103 +1,61 @@
-// controllers/auth.controller.js
-// ===============================
 import User from "../models/User.js";
-import Otp from "../models/Otp.js";
 import generateToken from "../utils/jwt.js";
+import { OAuth2Client } from "google-auth-library";
 
-/**
- * Generate 6 digit OTP
- */
-const generateOtp = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-/**
- * SEND OTP TO PHONE
- * POST /api/auth/send-otp
- * body: { phone, name }
- */
-export const sendOtp = async (req, res) => {
+export const googleAuth = async (req, res) => {
   try {
-    const { phone, name } = req.body;
+    const { idToken } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ message: "Phone number is required" });
+    if (!idToken) {
+      return res.status(400).json({ message: "Google token missing" });
     }
 
-    // Check user
-    let user = await User.findOne({ phone });
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
 
-    // Create user if not exists
+    const payload = ticket.getPayload();
+
+    const {
+      sub: googleId,
+      email,
+      name,
+      picture,
+    } = payload;
+
+    let user = await User.findOne({
+      provider: "google",
+      providerId: googleId,
+    });
+
     if (!user) {
       user = await User.create({
-        phone,
-        name: name || "User",
+        name,
+        email,
+        avatar: picture,
+        provider: "google",
+        providerId: googleId,
       });
     }
 
-    const otp = generateOtp();
-
-    // Save or update OTP
-    await Otp.findOneAndUpdate(
-      { phone },
-      {
-        otp,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
       },
-      { upsert: true }
-    );
-
-    // TODO: integrate SMS service here
-    console.log("OTP for testing:", otp);
-
-    res.status(200).json({
-      message: "OTP sent successfully",
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-/**
- * VERIFY OTP
- * POST /api/auth/verify-otp
- * body: { phone, otp }
- */
-export const verifyOtp = async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-
-    if (!phone || !otp) {
-      return res
-        .status(400)
-        .json({ message: "Phone and OTP are required" });
-    }
-
-    const otpRecord = await Otp.findOne({ phone, otp });
-
-    if (!otpRecord) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-
-    if (otpRecord.expiresAt < new Date()) {
-      return res.status(400).json({ message: "OTP expired" });
-    }
-
-    const user = await User.findOne({ phone });
-
-    user.isVerified = true;
-    await user.save();
-
-    // Delete OTP after success
-    await Otp.deleteOne({ phone });
-
-    res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      phone: user.phone,
       token: generateToken(user._id),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Google Auth Error:", error.message);
+    res.status(401).json({
+      success: false,
+      message: "Google authentication failed",
+    });
   }
 };

@@ -6,6 +6,8 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 
+
+console.log(process.env.EMAIL_USER);
 // ✅ 1. INIT APP FIRST
 const app = express();
 

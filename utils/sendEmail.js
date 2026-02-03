@@ -1,36 +1,16 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const sendOtpEmail = async (email, otp) => {
-  try {
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    const info = await transporter.sendMail({
-      from: `"Surpriser" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Your OTP Verification Code",
-      html: `
-        <h2>Email Verification</h2>
-        <p>Your OTP is:</p>
-        <h1>${otp}</h1>
-        <p>This OTP is valid for 5 minutes.</p>
-      `,
-    });
-
-    console.log("✅ Email sent:", info.messageId);
-    return true;
-  } catch (error) {
-    console.error("❌ NODEMAILER ERROR ↓↓↓");
-    console.error(error); // 👈 THIS IS WHAT WE NEED
-    throw error; // rethrow real error
+export const sendOtpEmail = async (email, otp) => {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is missing");
   }
-};
 
-export default sendOtpEmail;
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: "Your OTP Verification Code",
+    html: `<h1>Your OTP is ${otp}</h1>`,
+  });
+};

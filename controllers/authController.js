@@ -97,7 +97,7 @@
 
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
-import  sendOtpEmail  from "../utils/sendEmail.js";
+import  {sendOtpEmail}  from "../utils/sendEmail.js";
 import jwt from "jsonwebtoken";
 
 export const register = async (req, res) => {

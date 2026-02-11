@@ -1,27 +1,14 @@
-// middleware/authMiddleware.js
-import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import multer from "multer";
 
-export const protect = async (req, res, next) => {
-  let token;
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
 
-  if (req.headers.authorization?.startsWith("Bearer")) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
+const upload = multer({ storage });
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      req.user = await User.findById(decoded.id).select("-password");
-
-      if (!req.user) {
-        return res.status(401).json({ message: "User not found" });
-      }
-
-      next();
-    } catch (error) {
-      return res.status(401).json({ message: "Invalid token" });
-    }
-  } else {
-    return res.status(401).json({ message: "No token provided" });
-  }
-};
+export default upload;

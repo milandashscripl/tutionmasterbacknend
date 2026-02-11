@@ -1,6 +1,6 @@
 // controllers/authController.js
 import bcrypt from "bcryptjs";
-import User from "../models";
+import User from "../models/User.js";
 import generateToken from "../utils/jwt.js";
 
 import cloudinary from "../config/cloudinary.js";

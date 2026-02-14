@@ -1,7 +1,7 @@
 // routes/authRoutes.js
 import express from "express";
 import { register, login } from "../controllers/authController.js";
-import upload from "../midllewares/authMiddleware.js";
+import upload from "../midllewares/upload.js";
 
 const router = express.Router();
 

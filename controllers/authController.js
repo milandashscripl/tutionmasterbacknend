@@ -21,7 +21,7 @@ export const register = async (req, res) => {
 
     let profilePic = { url: "", public_id: "" };
 
-   if (req.file) {
+  if (req.file) {
   const result = await cloudinary.uploader.upload(
     `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
     { folder: "users" }
@@ -32,6 +32,7 @@ export const register = async (req, res) => {
     public_id: result.public_id,
   };
 }
+
 
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -71,7 +72,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }

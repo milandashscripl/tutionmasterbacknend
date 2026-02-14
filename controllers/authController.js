@@ -21,16 +21,18 @@ export const register = async (req, res) => {
 
     let profilePic = { url: "", public_id: "" };
 
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "users",
-      });
+   if (req.file) {
+  const result = await cloudinary.uploader.upload(
+    `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
+    { folder: "users" }
+  );
 
-      profilePic = {
-        url: result.secure_url,
-        public_id: result.public_id,
-      };
-    }
+  profilePic = {
+    url: result.secure_url,
+    public_id: result.public_id,
+  };
+}
+
 
     const hashedPassword = await bcrypt.hash(password, 10);
 

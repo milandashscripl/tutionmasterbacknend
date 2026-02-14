@@ -4,8 +4,9 @@ import User from "../models/User.js";
 import generateToken from "../utils/jwt.js";
 
 import cloudinary from "../config/cloudinary.js";
+// import User from "../models/User.js";
+import { uploadToCloudinary } from "../utils/uploadCloudinary.js";
 
-// REGISTER
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -28,10 +29,11 @@ export const register = async (req, res) => {
       user,
     });
   } catch (error) {
-    console.error(error);
+    console.error("REGISTER ERROR:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 
 

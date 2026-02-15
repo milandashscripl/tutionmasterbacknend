@@ -1,14 +1,17 @@
-import multer from "multer";
+import jwt from "jsonwebtoken";
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  },
-});
+export const protect = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
 
-const upload = multer({ storage });
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized" });
+  }
 
-export default upload;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // { id, role }
+    next();
+  } catch {
+    res.status(401).json({ message: "Invalid token" });
+  }
+};

@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import dashboardRoutes from "./routes/dashboarRoutes.js";
 
 console.log("Cloudinary Debug:", {
   name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -37,6 +38,8 @@ app.get("/", (req, res) => {
   res.send("🚀 API running perfectly");
 });
 
+
+app.use("/api", dashboardRoutes)
 // ✅ 6. SERVER
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

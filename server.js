@@ -6,6 +6,11 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 
+console.log("Cloudinary Debug:", {
+  name: process.env.CLOUDINARY_CLOUD_NAME,
+  key: process.env.CLOUDINARY_API_KEY ? "KEY_OK" : "KEY_MISSING",
+  secret: process.env.CLOUDINARY_API_SECRET ? "SECRET_OK" : "SECRET_MISSING",
+});
 
 
 console.log(process.env.EMAIL_USER);

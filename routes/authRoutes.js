@@ -5,7 +5,7 @@ import upload from "../midllewares/upload.js";
 
 const router = express.Router();
 
-router.post("/register", upload.single("profilePic"), register);
+router.post("/register", upload.single("profilePicture"), register);
 router.post("/login", login);
 
 export default router;

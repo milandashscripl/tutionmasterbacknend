@@ -2,33 +2,27 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-    },
+    fullName: { type: String, required: true },
+    email: { type: String, unique: true, sparse: true },
+    phone: { type: String, unique: true, sparse: true },
+    password: { type: String, required: true },
 
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
+    aadhar: { type: String, required: true },
 
-    password: {
-      type: String,
-      required: true,
-      select: false,
-    },
-
-    role: {
-      type: String,
-      enum: ["teacher", "student"],
-      default: "student",
+    address: {
+      text: String,
+      location: {
+        lat: Number,
+        lng: Number,
+      },
     },
 
     profilePic: {
       url: String,
       public_id: String,
     },
+
+    isVerified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

@@ -1,90 +1,103 @@
-// controllers/authController.js
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import generateToken from "../utils/jwt.js";
+import { getDevOtp } from "../utils/otp.js";
 import cloudinary from "../config/cloudinary.js";
-// import User from "../models/User.js";
-import { uploadToCloudinary } from "../utils/uploadCloudinary.js";
 
+// REGISTER
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const {
+      fullName,
+      email,
+      phone,
+      password,
+      aadhar,
+      addressText,
+      lat,
+      lng,
+      otp,
+    } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!fullName || !password || !aadhar) {
+      return res.status(400).json({ message: "Required fields missing" });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ message: "Profile picture required" });
+    // OTP check (DEV MODE)
+    if (otp !== getDevOtp()) {
+      return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    // ✅ Validate role
-    const userRole = role === "teacher" ? "teacher" : "student";
+    const exists = await User.findOne({
+      $or: [{ email }, { phone }],
+    });
+
+    if (exists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    let profilePic = {};
+    if (req.file) {
+      const upload = await cloudinary.uploader.upload(req.file.path, {
+        folder: "users",
+      });
+
+      profilePic = {
+        url: upload.secure_url,
+        public_id: upload.public_id,
+      };
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const uploadedImage = await uploadToCloudinary(req.file.buffer);
 
     const user = await User.create({
-      name,
+      fullName,
       email,
+      phone,
       password: hashedPassword,
-      role: userRole,
-      profilePic: {
-        url: uploadedImage.secure_url,
-        public_id: uploadedImage.public_id,
+      aadhar,
+      address: {
+        text: addressText,
+        location: { lat, lng },
       },
+      profilePic,
+      isVerified: true,
     });
-
-    user.password = undefined;
 
     res.status(201).json({
-      message: "User registered successfully",
+      message: "Registration successful",
+      token: generateToken(user._id),
       user,
     });
-  } catch (error) {
-    console.error("REGISTER ERROR:", error.message);
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
 
-
-
-
-// ===============================
-// LOGIN
-// ===============================
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { emailOrPhone, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
+    const user = await User.findOne({
+      $or: [{ email: emailOrPhone }, { phone: emailOrPhone }],
+    });
 
-    const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
- res.json({
-  message: "Login successful",
-  user: {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-  },
-  token: generateToken(user),
-});
-
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.json({
+      message: "Login successful",
+      token: generateToken(user._id),
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };

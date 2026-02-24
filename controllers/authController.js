@@ -31,14 +31,25 @@ export const register = async (req, res) => {
 
     let profilePic = {};
     if (req.file) {
-      const upload = await cloudinary.uploader.upload(req.file.path, {
-        folder: "users",
-      });
-
-      profilePic = {
-        url: upload.secure_url,
-        public_id: upload.public_id,
-      };
+      try {
+        // Do not attempt upload if Cloudinary credentials are missing
+        if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_CLOUD_NAME) {
+          console.warn("Cloudinary credentials missing - skipping image upload");
+        } else if (req.file.buffer && req.file.buffer.length > 0) {
+          const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+          const upload = await cloudinary.uploader.upload(dataUri, { folder: "users" });
+          profilePic = { url: upload.secure_url, public_id: upload.public_id };
+        } else if (req.file.path) {
+          const upload = await cloudinary.uploader.upload(req.file.path, { folder: "users" });
+          profilePic = { url: upload.secure_url, public_id: upload.public_id };
+        } else {
+          console.warn("Received file but no buffer/path available");
+        }
+      } catch (uploadErr) {
+        console.error("Cloudinary upload failed:", uploadErr?.message || uploadErr);
+        // don't throw — continue without profilePic, but surface a friendly message
+        // (in production you may want to return an error instead)
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

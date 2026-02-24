@@ -19,10 +19,15 @@ console.log(process.env.EMAIL_USER);
 const app = express();
 
 // ✅ 2. MIDDLEWARES
+import cors from "cors";
+
 app.use(cors({
-  origin: "*",
+  origin: [
+    "http://localhost:5173",
+    "https://tutionmasterbacknend.onrender.com"
+  ],
   methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 app.use(express.json());

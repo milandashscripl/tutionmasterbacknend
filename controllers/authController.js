@@ -23,9 +23,11 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    // OTP check (DEV MODE)
-    if (otp !== getDevOtp()) {
-      return res.status(400).json({ message: "Invalid OTP" });
+    // OTP check: require OTP only when not in development
+    if (process.env.NODE_ENV !== "development") {
+      if (otp !== getDevOtp()) {
+        return res.status(400).json({ message: "Invalid OTP" });
+      }
     }
 
     const exists = await User.findOne({

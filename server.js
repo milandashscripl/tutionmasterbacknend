@@ -19,7 +19,6 @@ console.log(process.env.EMAIL_USER);
 const app = express();
 
 // ✅ 2. MIDDLEWARES
-import cors from "cors";
 
 app.use(cors({
   origin: [

@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import cloudinary from "../config/cloudinary.js";
 
 // READ
 export const getProfile = async (req, res) => {
@@ -7,12 +8,44 @@ export const getProfile = async (req, res) => {
 
 // UPDATE
 export const updateProfile = async (req, res) => {
-  const updated = await User.findByIdAndUpdate(
-    req.user._id,
-    req.body,
-    { new: true }
-  );
-  res.json(updated);
+  try {
+    const updates = { ...req.body };
+
+    // if multipart file present, upload to cloudinary (if configured)
+    if (req.file) {
+      try {
+        if (req.file.buffer && process.env.CLOUDINARY_API_KEY) {
+          const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+          const upload = await cloudinary.uploader.upload(dataUri, { folder: "users" });
+          updates.profilePic = { url: upload.secure_url, public_id: upload.public_id };
+        }
+      } catch (err) {
+        console.error("Profile pic upload failed:", err?.message || err);
+      }
+    }
+
+    const allowed = ["fullName", "email", "phone", "aadhar", "address", "addressText", "lat", "lng", "registrationType", "profilePic"];
+    const payload = {};
+    Object.keys(updates).forEach((k) => {
+      if (allowed.includes(k)) payload[k] = updates[k];
+    });
+
+    // if addressText/lat/lng provided, map into address object
+    if (updates.addressText || updates.lat || updates.lng) {
+      payload.address = {
+        text: updates.addressText || req.user.address?.text,
+        location: {
+          lat: updates.lat ? Number(updates.lat) : req.user.address?.location?.lat,
+          lng: updates.lng ? Number(updates.lng) : req.user.address?.location?.lng,
+        },
+      };
+    }
+
+    const updated = await User.findByIdAndUpdate(req.user._id, payload, { new: true }).select("-password");
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 // DELETE

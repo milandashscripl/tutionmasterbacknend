@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 // import dashboardRoutes from "./routes/dashboarRoutes.js";
 
 console.log("Cloudinary Debug:", {
@@ -37,6 +38,7 @@ connectDB();
 
 // ✅ 4. ROUTES
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 
 // ✅ 5. TEST ROUTE
 app.get("/", (req, res) => {

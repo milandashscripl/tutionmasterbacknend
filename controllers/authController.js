@@ -134,3 +134,47 @@ export const login = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// FORGOT PASSWORD - send OTP to registered phone
+export const forgotPassword = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "Phone is required" });
+
+    const user = await User.findOne({ phone });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    const otpToSend = process.env.DEV_OTP || (Math.floor(100000 + Math.random() * 900000).toString());
+    user.otp = otpToSend;
+    await user.save();
+
+    // In production send SMS. For now log it and return minimal response.
+    console.log(`Password reset OTP for ${phone} => ${otpToSend}`);
+
+    return res.json({ message: "OTP_SENT", phone });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// RESET PASSWORD - verify OTP then update password
+export const resetPassword = async (req, res) => {
+  try {
+    const { phone, otp, newPassword } = req.body;
+    if (!phone || !otp || !newPassword) return res.status(400).json({ message: "Phone, OTP and newPassword required" });
+
+    const user = await User.findOne({ phone });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    const expected = process.env.DEV_OTP || user.otp;
+    if (otp !== expected) return res.status(400).json({ message: "Invalid OTP" });
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.otp = undefined;
+    await user.save();
+
+    return res.json({ message: "Password reset successful" });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};

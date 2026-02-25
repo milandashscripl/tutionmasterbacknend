@@ -25,6 +25,12 @@ const userSchema = new mongoose.Schema(
     },
 
     isVerified: { type: Boolean, default: false },
+
+    settings: {
+      theme: { type: String, enum: ["light", "blue", "green", "purple"], default: "light" },
+      darkMode: { type: Boolean, default: false },
+      notifications: { type: Boolean, default: true },
+    },
   },
   { timestamps: true }
 );

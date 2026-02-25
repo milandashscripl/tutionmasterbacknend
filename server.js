@@ -25,10 +25,14 @@ app.use(cors({
   origin: [
     "http://localhost:5173",
     "http://localhost:5174",
-    "https://tutionmasterbacknend.onrender.com"
+    "https://tutionmasterbacknend.onrender.com",
+    "https://tutionmasters.netlify.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 204,
+  // if you use cookies/auth headers, enable credentials
+  // credentials: true,
 }));
 
 app.use(express.json());

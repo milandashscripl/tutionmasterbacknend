@@ -14,6 +14,7 @@ import courseRoutes from "./routes/courseRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
+app.use(express.json());
 
 // ✅ Allowed origins
 const allowedOrigins = [
@@ -41,7 +42,6 @@ app.use(
   })
 );
 
-app.use(express.json());
 
 // ✅ Connect Database
 connectDB();

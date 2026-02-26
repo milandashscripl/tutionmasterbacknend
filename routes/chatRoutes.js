@@ -6,11 +6,14 @@ import User from "../models/User.js";
 
 const router = express.Router();
 
+const isParticipant = (chat, userId) =>
+  chat?.participants?.some((participant) => participant.toString() === userId);
+
 // Get all chats for current user
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const chats = await Chat.find({ participants: req.user.id })
-      .populate("participants", "name email profileImage")
+      .populate("participants", "fullName email profilePic")
       .populate("messages")
       .sort({ updatedAt: -1 });
 
@@ -28,7 +31,7 @@ router.post("/user/:userId", authMiddleware, async (req, res) => {
     // Check if chat already exists
     let chat = await Chat.findOne({
       participants: { $all: [req.user.id, otherUserId] },
-    }).populate("participants", "name email profileImage");
+    }).populate("participants", "fullName email profilePic");
 
     if (!chat) {
       // Create new chat
@@ -39,11 +42,11 @@ router.post("/user/:userId", authMiddleware, async (req, res) => {
 
       chat = new Chat({
         participants: [req.user.id, otherUserId],
-        chatName: otherUser.name,
+        chatName: otherUser.fullName,
         messages: [],
       });
       await chat.save();
-      chat = await chat.populate("participants", "name email profileImage");
+      chat = await chat.populate("participants", "fullName email profilePic");
     }
 
     res.status(200).json(chat);
@@ -59,12 +62,16 @@ router.get("/:chatId/messages", authMiddleware, async (req, res) => {
 
     // Verify user is part of this chat
     const chat = await Chat.findById(chatId);
-    if (!chat.participants.includes(req.user.id)) {
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    if (!isParticipant(chat, req.user.id)) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     const messages = await Message.find({ chatId })
-      .populate("sender", "name profileImage email")
+      .populate("sender", "fullName profilePic email")
       .sort({ timestamp: 1 });
 
     res.status(200).json(messages);
@@ -85,7 +92,11 @@ router.post("/:chatId/messages", authMiddleware, async (req, res) => {
 
     // Verify user is part of this chat
     const chat = await Chat.findById(chatId);
-    if (!chat.participants.includes(req.user.id)) {
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    if (!isParticipant(chat, req.user.id)) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
@@ -102,7 +113,7 @@ router.post("/:chatId/messages", authMiddleware, async (req, res) => {
 
     const populatedMessage = await message.populate(
       "sender",
-      "name profileImage email"
+      "fullName profilePic email"
     );
 
     res.status(201).json(populatedMessage);
@@ -115,7 +126,7 @@ router.post("/:chatId/messages", authMiddleware, async (req, res) => {
 router.get("/:chatId", authMiddleware, async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.chatId)
-      .populate("participants", "name email profileImage")
+      .populate("participants", "fullName email profilePic")
       .populate("messages");
 
     if (!chat) {
@@ -140,7 +151,11 @@ router.put("/:chatId/mark-read", authMiddleware, async (req, res) => {
 
     // Verify user is part of this chat
     const chat = await Chat.findById(chatId);
-    if (!chat.participants.includes(req.user.id)) {
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    if (!isParticipant(chat, req.user.id)) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 

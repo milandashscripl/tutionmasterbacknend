@@ -6,10 +6,12 @@ import {
   updateProfile,
   deleteUser,
   updateSettings,
+  getAllUsers
 } from "../controllers/userController.js";
 
 const router = express.Router();
 
+router.get("/", auth, getAllUsers);
 router.get("/me", auth, getProfile);
 router.put("/me", auth, upload.single("profilePic"), updateProfile);
 router.put("/settings", auth, updateSettings);

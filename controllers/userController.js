@@ -70,3 +70,17 @@ export const updateSettings = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+// GET ALL USERS (for chat list)
+export const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({
+      _id: { $ne: req.user._id }, // exclude current user
+    }).select("-password");
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

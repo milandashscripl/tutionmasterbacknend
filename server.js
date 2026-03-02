@@ -5,7 +5,10 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import bcrypt from "bcryptjs";
+
 import connectDB from "./config/db.js";
+import User from "./models/User.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -15,9 +18,14 @@ import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
+
+// ===============================
+// ✅ Middleware
+// ===============================
+
 app.use(express.json());
 
-// ✅ Allowed origins
+// Allowed Origins
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
@@ -25,7 +33,20 @@ const allowedOrigins = [
   "https://tutionmasterbacknend.onrender.com",
 ];
 
-// ✅ Socket.io setup
+// CORS Setup
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
+
+// ===============================
+// ✅ Socket.io Setup
+// ===============================
+
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
@@ -34,32 +55,8 @@ const io = new Server(httpServer, {
   },
 });
 
-// ✅ Express middleware
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-
-// ✅ Connect Database
-connectDB().then(createDefaultAdmin);
-// ✅ Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/chats", chatRoutes);
-app.use("/api/courses", courseRoutes);
-
-app.use("/api/admin", adminRoutes);
-
-app.get("/", (req, res) => {
-  res.send("🚀 API running perfectly");
-});
-
 // ===============================
-// 🔥 SOCKET LOGIC (Improved)
+// 🔥 SOCKET LOGIC
 // ===============================
 
 const userSockets = new Map();
@@ -81,11 +78,9 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} joined room chat:${chatId}`);
   });
 
-  // Send message (REALTIME)
+  // Send message
   socket.on("chat:message", ({ chatId, message }) => {
     if (!chatId || !message) return;
-
-    // Send to everyone EXCEPT sender
     socket.to(`chat:${chatId}`).emit("chat:message:new", message);
   });
 
@@ -99,7 +94,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Disconnect
   socket.on("disconnect", () => {
     console.log("🔴 User disconnected:", socket.id);
 
@@ -112,11 +106,28 @@ io.on("connection", (socket) => {
   });
 });
 
+// ===============================
+// ✅ Routes
+// ===============================
 
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/admin", adminRoutes);
+
+app.get("/", (req, res) => {
+  res.send("🚀 API running perfectly");
+});
+
+// ===============================
+// 👑 CREATE DEFAULT ADMIN
+// ===============================
 
 const createDefaultAdmin = async () => {
   try {
     const adminEmail = "tutionadmin@gmail.com";
+
     const existingAdmin = await User.findOne({ email: adminEmail });
 
     if (!existingAdmin) {
@@ -137,16 +148,29 @@ const createDefaultAdmin = async () => {
       console.log("ℹ️ Admin already exists");
     }
   } catch (err) {
-    console.error("Admin creation failed:", err.message);
+    console.error("❌ Admin creation failed:", err.message);
   }
 };
+
 // ===============================
-// 🚀 Start Server
+// 🚀 CONNECT DB & START SERVER
 // ===============================
 
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`🔥 Server running on port ${PORT}`);
-});
 
+connectDB()
+  .then(async () => {
+    console.log("✅ Database Connected");
+
+    await createDefaultAdmin();
+
+    httpServer.listen(PORT, () => {
+      console.log(`🔥 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ DB Connection Failed:", err.message);
+  });
+
+// Export socket for controllers
 export { io };

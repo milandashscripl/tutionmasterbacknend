@@ -45,8 +45,7 @@ app.use(
 
 
 // ✅ Connect Database
-connectDB();
-
+connectDB().then(createDefaultAdmin);
 // ✅ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);

@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
 
     aadhar: { type: String, required: true },
-    registrationType: { type: String, enum: ["student", "teacher"], required: true },
+    registrationType: { type: String, enum: ["student", "teacher", "admin"], required: true },
     otp: { type: String },
 
     address: {

@@ -11,6 +11,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -51,6 +52,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/courses", courseRoutes);
+
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 API running perfectly");
@@ -110,6 +113,34 @@ io.on("connection", (socket) => {
   });
 });
 
+
+
+const createDefaultAdmin = async () => {
+  try {
+    const adminEmail = "tutionadmin@gmail.com";
+    const existingAdmin = await User.findOne({ email: adminEmail });
+
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash("Admin01@abc", 10);
+
+      await User.create({
+        fullName: "System Admin",
+        email: adminEmail,
+        phone: "9999999999",
+        password: hashedPassword,
+        aadhar: "000000000000",
+        registrationType: "admin",
+        isVerified: true,
+      });
+
+      console.log("✅ Default Admin Created");
+    } else {
+      console.log("ℹ️ Admin already exists");
+    }
+  } catch (err) {
+    console.error("Admin creation failed:", err.message);
+  }
+};
 // ===============================
 // 🚀 Start Server
 // ===============================

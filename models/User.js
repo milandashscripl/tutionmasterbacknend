@@ -66,9 +66,10 @@ const userSchema = new mongoose.Schema(
 
   /* OTP SYSTEM */
 
-  otp: String,
-  isVerified: { type: Boolean, default: false },
-  isApproved: { type: Boolean, default: false },
+otp: { type: String },
+
+isVerified: { type: Boolean, default: false }, // OTP verified
+isApproved: { type: Boolean, default: false }, // Admin approval
 
   /* ADDRESS */
 

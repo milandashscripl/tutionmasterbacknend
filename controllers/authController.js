@@ -97,7 +97,9 @@ export const registerVerify = async (req, res) => {
     user.otp = undefined;
     await user.save();
 
-    res.json({ message: "Verified", token: generateToken(user._id), user });
+    res.json({
+  message: "OTP Verified. Waiting for admin approval"
+});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -116,9 +118,13 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    if (!user.isVerified) {
-      return res.status(401).json({ message: "Account not verified" });
-    }
+if (!user.isVerified) {
+  return res.status(401).json({ message: "OTP verification required" });
+}
+
+if (!user.isApproved) {
+  return res.status(401).json({ message: "Waiting for admin approval" });
+}
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {

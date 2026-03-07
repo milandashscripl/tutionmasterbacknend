@@ -184,7 +184,13 @@ if (!user.isVerified) {
   return res.status(401).json({ message: "OTP verification required" });
 }
 
-if (!user.isApproved) {
+if (!user.isVerified) {
+  return res.status(401).json({ message: "OTP verification required" });
+}
+
+/* ADMIN DOES NOT NEED APPROVAL */
+
+if (user.registrationType !== "admin" && !user.isApproved) {
   return res.status(401).json({ message: "Waiting for admin approval" });
 }
 

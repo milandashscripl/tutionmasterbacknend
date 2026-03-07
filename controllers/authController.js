@@ -5,81 +5,143 @@ import { getDevOtp } from "../utils/otp.js";
 import cloudinary from "../config/cloudinary.js";
 
 // REGISTER
-export const register = async (req, res) => {
-  try {
-    const {
-      fullName,
-      email,
-      phone,
-      password,
-      aadhar,
-      addressText,
-      lat,
-      lng,
-      registrationType,
-    } = req.body;
+export const register = async (req,res)=>{
+try{
 
-    if (!fullName || !password || !aadhar || !registrationType || !phone) {
-      return res.status(400).json({ message: "Required fields missing" });
-    }
+const{
+fullName,
+email,
+phone,
+password,
+aadhar,
+registrationType,
+gender,
+age,
+addressText,
+lat,
+lng,
 
-    const exists = await User.findOne({ $or: [{ email }, { phone }] });
+/* student */
 
-    if (exists) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+standard,
+board,
+subjects,
 
-    let profilePic = {};
-    if (req.file) {
-      try {
-        // Do not attempt upload if Cloudinary credentials are missing
-        if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_CLOUD_NAME) {
-          console.warn("Cloudinary credentials missing - skipping image upload");
-        } else if (req.file.buffer && req.file.buffer.length > 0) {
-          const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-          const upload = await cloudinary.uploader.upload(dataUri, { folder: "users" });
-          profilePic = { url: upload.secure_url, public_id: upload.public_id };
-        } else if (req.file.path) {
-          const upload = await cloudinary.uploader.upload(req.file.path, { folder: "users" });
-          profilePic = { url: upload.secure_url, public_id: upload.public_id };
-        } else {
-          console.warn("Received file but no buffer/path available");
-        }
-      } catch (uploadErr) {
-        console.error("Cloudinary upload failed:", uploadErr?.message || uploadErr);
-        // don't throw — continue without profilePic, but surface a friendly message
-        // (in production you may want to return an error instead)
-      }
-    }
+/* teacher */
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+teachingUpto,
+distance
 
-    // OTP: use DEV_OTP if provided, otherwise generate a 6-digit code
-    const otpToSend = process.env.DEV_OTP || (Math.floor(100000 + Math.random() * 900000).toString());
+}=req.body;
 
-    const user = await User.create({
-      fullName,
-      email,
-      phone,
-      password: hashedPassword,
-      aadhar,
-      registrationType,
-      address: {
-        text: addressText,
-        location: { lat, lng },
-      },
-      profilePic,
-      isVerified: false,
-      otp: otpToSend,
-    });
+if(!fullName || !phone || !password || !registrationType){
+return res.status(400).json({message:"Required fields missing"});
+}
 
-    // In production you'd send this via SMS. For now log it so developers can read it.
-    console.log(`OTP for ${phone} => ${otpToSend}`);
+const exists = await User.findOne({
+$or:[{email},{phone}]
+});
 
-    res.status(201).json({ message: "OTP_SENT", phone });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+if(exists){
+return res.status(400).json({message:"User already exists"});
+}
+
+const hashedPassword = await bcrypt.hash(password,10);
+
+/* OTP */
+
+const otpToSend =
+process.env.DEV_OTP ||
+(Math.floor(100000+Math.random()*900000)).toString();
+
+/* PROFILE PIC */
+
+let profilePic={};
+
+if(req.file){
+const dataUri=`data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+const upload=await cloudinary.uploader.upload(dataUri,{
+folder:"users"
+});
+
+profilePic={
+url:upload.secure_url,
+public_id:upload.public_id
+};
+}
+
+/* SUBJECT ARRAY */
+
+let subjectsArray=[];
+
+if(subjects){
+subjectsArray=subjects.split(",").map(s=>s.trim());
+}
+
+/* USER DATA */
+
+const userData={
+fullName,
+email,
+phone,
+password:hashedPassword,
+aadhar,
+registrationType,
+gender,
+age,
+
+address:{
+text:addressText,
+location:{
+lat,
+lng
+}
+},
+
+profilePic,
+otp:otpToSend,
+isVerified:false,
+isApproved:false
+};
+
+/* STUDENT */
+
+if(registrationType==="student"){
+
+userData.studentDetails={
+standard,
+board,
+subjects:subjectsArray
+};
+
+}
+
+/* TEACHER */
+
+if(registrationType==="teacher"){
+
+userData.teacherDetails={
+teachingUpto,
+subjectsExpert:subjectsArray,
+distance
+};
+
+}
+
+const user=await User.create(userData);
+
+console.log(`OTP for ${phone} => ${otpToSend}`);
+
+res.status(201).json({
+message:"OTP_SENT",
+phone
+});
+
+}
+catch(err){
+res.status(500).json({message:err.message});
+}
 };
 
 export const registerVerify = async (req, res) => {

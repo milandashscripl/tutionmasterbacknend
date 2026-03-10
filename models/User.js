@@ -36,15 +36,11 @@ url:String,
 public_id:String
 },
 
-/* STUDENT DETAILS */
-
 studentDetails:{
 standard:String,
 board:String,
 subjects:[String]
 },
-
-/* TEACHER DETAILS */
 
 teacherDetails:{
 teachingUpto:String,
@@ -66,4 +62,4 @@ notifications:{ type:Boolean, default:true }
 { timestamps:true }
 );
 
-export default mongoose.model("User",userSchema);
+export default mongoose.models.User || mongoose.model("User",userSchema);

@@ -24,5 +24,5 @@ const AppSettingsSchema = new mongoose.Schema({
 
 });
 
-export default mongoose.models.AppSettings ||
+export default mongoose.models.AppSettings ||   
 mongoose.model("AppSettings", AppSettingsSchema);

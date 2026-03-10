@@ -55,17 +55,25 @@ export const deleteUser = async (req, res) => {
 };
 
 // UPDATE SETTINGS
-export const updateSettings = async (req, res) => {
+export const updateUserSettings = async (req, res) => {
   try {
+
     const { theme, darkMode, notifications } = req.body;
 
     const settings = {};
+
     if (theme) settings["settings.theme"] = theme;
     if (darkMode !== undefined) settings["settings.darkMode"] = darkMode;
     if (notifications !== undefined) settings["settings.notifications"] = notifications;
 
-    const updated = await User.findByIdAndUpdate(req.user._id, settings, { new: true }).select("-password");
+    const updated = await User.findByIdAndUpdate(
+      req.user._id,
+      settings,
+      { new: true }
+    ).select("-password");
+
     res.json(updated);
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

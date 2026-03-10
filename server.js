@@ -15,6 +15,7 @@ import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import settingsRoutes from "./routes/settingsRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -115,6 +116,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/settings", settingsRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 API running perfectly");
@@ -141,6 +143,7 @@ const createDefaultAdmin = async () => {
         aadhar: "000000000000",
         registrationType: "admin",
         isVerified: true,
+        isApproved: true,
       });
 
       console.log("✅ Default Admin Created");

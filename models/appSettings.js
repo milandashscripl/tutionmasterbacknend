@@ -1,12 +1,28 @@
 import mongoose from "mongoose";
 
-const appSettingsSchema = new mongoose.Schema({
+const AppSettingsSchema = new mongoose.Schema({
 
-  navbarLogo:{
-    url:String,
-    public_id:String
+  siteName: {
+    type: String,
+    default: "TuitionMaster"
+  },
+
+  themeColor: {
+    type: String,
+    default: "#6366f1"
+  },
+
+  fontFamily: {
+    type: String,
+    default: "Poppins"
+  },
+
+  logo: {
+    url: String,
+    public_id: String
   }
 
 });
 
-export default mongoose.model("AppSettings",appSettingsSchema);
+export default mongoose.models.AppSettings ||
+mongoose.model("AppSettings", AppSettingsSchema);

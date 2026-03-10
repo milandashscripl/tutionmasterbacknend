@@ -184,9 +184,6 @@ if (!user.isVerified) {
   return res.status(401).json({ message: "OTP verification required" });
 }
 
-if (!user.isVerified) {
-  return res.status(401).json({ message: "OTP verification required" });
-}
 
 /* ADMIN DOES NOT NEED APPROVAL */
 

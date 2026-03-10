@@ -1,6 +1,5 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
-import AppSettings from "./../models/appSettings.js";
 
 // Get all pending users
 // export const getPendingUsers = async (req, res) => {

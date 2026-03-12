@@ -1,62 +1,27 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 
-// Get all pending users
-// export const getPendingUsers = async (req, res) => {
-//   try {
 
-//     const users = await User.find({
-//       isVerified: false,
-//       registrationType: { $ne: "admin" },
-//     }).select("-password");
+export const getPendingUsers = async(req,res)=>{
 
-//     res.json(users);
+try{
 
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-// };
+const users = await User.find({
+isVerified:true,
+isApproved:false
+}).select("-password");
 
-export const getPendingUsers = async (req, res) => {
-  try {
+res.json(users);
 
-    const users = await User.find({
-      isVerified: true,
-      isApproved: false,
-      registrationType: { $ne: "admin" }
-    }).select("-password");
+}catch(err){
+res.status(500).json({message:"Server error"});
+}
 
-    res.json(users);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
 };
 
 
 // Approve user
-// export const approveUser = async (req, res) => {
 
-//   try {
-
-//     const { userId } = req.params;
-
-//     const user = await User.findById(userId);
-
-//     if (!user)
-//       return res.status(404).json({ message: "User not found" });
-
-//     user.isVerified = true;
-
-//     await user.save();
-
-//     res.json({ message: "User approved successfully" });
-
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-
-// };
 
 export const approveUser = async (req, res) => {
   try {

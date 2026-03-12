@@ -55,7 +55,7 @@ export const deleteUser = async (req, res) => {
 };
 
 // UPDATE SETTINGS
-export const updateSettings = async (req,res)=>{
+export const updateUserSettings = async (req,res)=>{
 try{
 
 const {theme,darkMode,notifications} = req.body;

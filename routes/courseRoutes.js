@@ -9,9 +9,9 @@ import {
   likeContent,
   dislikeContent,
   commentContent
-} from "../controllers/courseController.js";
+} from "../controllers/userController.js";
 
-import { protect } from "../middlewares/authMiddleware.js";
+import { protect } from "./../midllewares/authMiddleware.js";
 
 const router = express.Router();
 

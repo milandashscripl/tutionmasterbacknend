@@ -93,3 +93,135 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+export const uploadCourseContent = async (req, res) => {
+  try {
+
+    const { title, type } = req.body;
+
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ message: "File required" });
+    }
+
+    res.json({
+      message: "Content uploaded",
+      file: file.filename
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const getCourseContent = async (req, res) => {
+
+  const course = await Course.findById(req.params.courseId)
+  .populate("contents.uploadedBy", "fullName");
+
+  res.json(course.contents);
+
+};
+
+export const likeContent = async (req, res) => {
+
+  const { contentId } = req.params;
+  const userId = req.user._id;
+
+  const course = await Course.findOne({ "contents._id": contentId });
+
+  const content = course.contents.id(contentId);
+
+  if (!content.likes.includes(userId)) {
+
+    content.likes.push(userId);
+    content.dislikes.pull(userId);
+
+  }
+
+  await course.save();
+
+  res.json(content);
+
+};
+
+
+export const dislikeContent = async (req, res) => {
+
+  const { contentId } = req.params;
+  const userId = req.user._id;
+
+  const course = await Course.findOne({ "contents._id": contentId });
+
+  const content = course.contents.id(contentId);
+
+  if (!content.dislikes.includes(userId)) {
+
+    content.dislikes.push(userId);
+    content.likes.pull(userId);
+
+  }
+
+  await course.save();
+
+  res.json(content);
+
+};
+
+
+import Course from "../models/Course.js";
+
+export const getCourse = async (req, res) => {
+  try {
+
+    const course = await Course.findById(req.params.id)
+      .populate("instructor", "fullName")
+      .populate("enrolledStudents", "fullName");
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    res.json(course);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getCourses = async (req, res) => {
+  try {
+
+    const courses = await Course.find()
+      .populate("instructor", "fullName");
+
+    res.json(courses);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const createCourse = async (req, res) => {
+  try {
+
+    const { name, description, level, price, hours } = req.body;
+
+    const course = await Course.create({
+      name,
+      description,
+      level,
+      price,
+      hours,
+      instructor: req.user._id
+    });
+
+    res.json(course);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

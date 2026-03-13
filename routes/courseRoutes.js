@@ -2,38 +2,45 @@ import express from "express";
 import multer from "multer";
 
 import {
-getCourses,
-getCourse,
-createCourse,
-uploadCourseContent,
-likeContent,
-dislikeContent,
-commentContent
-} from "./../controllers/userController.js";
+  getCourses,
+  getCourse,
+  createCourse,
+  uploadCourseContent,
+  likeContent,
+  dislikeContent,
+  commentContent
+} from "../controllers/courseController.js";
 
-import { protect } from "../midllewares/authMiddleware.js";
+import { protect } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
 const upload = multer();
 
+// get all courses
 router.get("/", getCourses);
 
+// get single course
 router.get("/:id", getCourse);
 
+// create course
 router.post("/", protect, upload.single("thumbnail"), createCourse);
 
+// upload content
 router.post(
-"/:courseId/content",
-protect,
-upload.single("file"),
-uploadCourseContent
+  "/:courseId/content",
+  protect,
+  upload.single("file"),
+  uploadCourseContent
 );
 
-router.post("/content/:contentId/like", protect, likeContent);
+// like
+router.post("/like/:contentId", protect, likeContent);
 
-router.post("/content/:contentId/dislike", protect, dislikeContent);
+// dislike
+router.post("/dislike/:contentId", protect, dislikeContent);
 
-router.post("/content/:contentId/comment", protect, commentContent);
+// comment
+router.post("/comment/:contentId", protect, commentContent);
 
 export default router;

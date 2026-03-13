@@ -94,12 +94,9 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-
-
 // ===============================
 // GET ALL COURSES
 // ===============================
-
 export const getCourses = async (req, res) => {
   try {
 
@@ -114,11 +111,9 @@ export const getCourses = async (req, res) => {
 };
 
 
-
 // ===============================
 // GET SINGLE COURSE
 // ===============================
-
 export const getCourse = async (req, res) => {
 
   try {
@@ -139,11 +134,9 @@ export const getCourse = async (req, res) => {
 };
 
 
-
 // ===============================
 // CREATE COURSE
 // ===============================
-
 export const createCourse = async (req, res) => {
 
   try {
@@ -181,11 +174,9 @@ export const createCourse = async (req, res) => {
 };
 
 
-
 // ===============================
 // UPLOAD COURSE CONTENT
 // ===============================
-
 export const uploadCourseContent = async (req, res) => {
 
   try {
@@ -208,6 +199,10 @@ export const uploadCourseContent = async (req, res) => {
 
     const course = await Course.findById(courseId);
 
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
     course.contents.push({
       title,
       type,
@@ -225,80 +220,95 @@ export const uploadCourseContent = async (req, res) => {
 };
 
 
-
 // ===============================
 // LIKE CONTENT
 // ===============================
-
 export const likeContent = async (req, res) => {
 
-  const { contentId } = req.params;
-  const userId = req.user._id;
+  try {
 
-  const course = await Course.findOne({ "contents._id": contentId });
+    const { contentId } = req.params;
+    const userId = req.user._id;
 
-  const content = course.contents.id(contentId);
+    const course = await Course.findOne({ "contents._id": contentId });
 
-  if (!content.likes.includes(userId)) {
+    const content = course.contents.id(contentId);
 
-    content.likes.push(userId);
-    content.dislikes.pull(userId);
+    if (!content.likes.includes(userId)) {
 
+      content.likes.push(userId);
+      content.dislikes.pull(userId);
+
+    }
+
+    await course.save();
+
+    res.json(content);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 
-  await course.save();
-
-  res.json(content);
 };
-
 
 
 // ===============================
 // DISLIKE CONTENT
 // ===============================
-
 export const dislikeContent = async (req, res) => {
 
-  const { contentId } = req.params;
-  const userId = req.user._id;
+  try {
 
-  const course = await Course.findOne({ "contents._id": contentId });
+    const { contentId } = req.params;
+    const userId = req.user._id;
 
-  const content = course.contents.id(contentId);
+    const course = await Course.findOne({ "contents._id": contentId });
 
-  if (!content.dislikes.includes(userId)) {
+    const content = course.contents.id(contentId);
 
-    content.dislikes.push(userId);
-    content.likes.pull(userId);
+    if (!content.dislikes.includes(userId)) {
 
+      content.dislikes.push(userId);
+      content.likes.pull(userId);
+
+    }
+
+    await course.save();
+
+    res.json(content);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 
-  await course.save();
-
-  res.json(content);
 };
 
 
-
 // ===============================
-// COMMENT ON CONTENT
+// COMMENT CONTENT
 // ===============================
-
 export const commentContent = async (req, res) => {
 
-  const { contentId } = req.params;
-  const { text } = req.body;
+  try {
 
-  const course = await Course.findOne({ "contents._id": contentId });
+    const { contentId } = req.params;
+    const { text } = req.body;
 
-  const content = course.contents.id(contentId);
+    const course = await Course.findOne({ "contents._id": contentId });
 
-  content.comments.push({
-    user: req.user._id,
-    text
-  });
+    const content = course.contents.id(contentId);
 
-  await course.save();
+    content.comments.push({
+      user: req.user._id,
+      text
+    });
 
-  res.json(content);
+    await course.save();
+
+    res.json(content);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+
 };

@@ -95,10 +95,103 @@ export const getAllUsers = async (req, res) => {
 };
 
 
+
+// ===============================
+// GET ALL COURSES
+// ===============================
+
+export const getCourses = async (req, res) => {
+  try {
+
+    const courses = await Course.find()
+      .populate("instructor", "fullName profilePic");
+
+    res.json(courses);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
+
+// ===============================
+// GET SINGLE COURSE
+// ===============================
+
+export const getCourse = async (req, res) => {
+
+  try {
+
+    const course = await Course.findById(req.params.id)
+      .populate("instructor", "fullName profilePic")
+      .populate("contents.uploadedBy", "fullName profilePic");
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    res.json(course);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
+
+// ===============================
+// CREATE COURSE
+// ===============================
+
+export const createCourse = async (req, res) => {
+
+  try {
+
+    const { name, description, level, price, hours } = req.body;
+
+    let thumbnailUrl = "";
+
+    if (req.file) {
+
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+      const upload = await cloudinary.uploader.upload(dataUri, {
+        folder: "courses",
+      });
+
+      thumbnailUrl = upload.secure_url;
+    }
+
+    const course = await Course.create({
+      name,
+      description,
+      level,
+      price,
+      hours,
+      thumbnail: thumbnailUrl,
+      instructor: req.user._id,
+    });
+
+    res.json(course);
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
+
+// ===============================
+// UPLOAD COURSE CONTENT
+// ===============================
+
 export const uploadCourseContent = async (req, res) => {
+
   try {
 
     const { title, type } = req.body;
+    const { courseId } = req.params;
 
     const file = req.file;
 
@@ -106,10 +199,25 @@ export const uploadCourseContent = async (req, res) => {
       return res.status(400).json({ message: "File required" });
     }
 
-    res.json({
-      message: "Content uploaded",
-      file: file.filename
+    const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+
+    const upload = await cloudinary.uploader.upload(dataUri, {
+      folder: "course_contents",
+      resource_type: "auto",
     });
+
+    const course = await Course.findById(courseId);
+
+    course.contents.push({
+      title,
+      type,
+      url: upload.secure_url,
+      uploadedBy: req.user._id
+    });
+
+    await course.save();
+
+    res.json(course);
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -117,14 +225,10 @@ export const uploadCourseContent = async (req, res) => {
 };
 
 
-export const getCourseContent = async (req, res) => {
 
-  const course = await Course.findById(req.params.courseId)
-  .populate("contents.uploadedBy", "fullName");
-
-  res.json(course.contents);
-
-};
+// ===============================
+// LIKE CONTENT
+// ===============================
 
 export const likeContent = async (req, res) => {
 
@@ -145,9 +249,13 @@ export const likeContent = async (req, res) => {
   await course.save();
 
   res.json(content);
-
 };
 
+
+
+// ===============================
+// DISLIKE CONTENT
+// ===============================
 
 export const dislikeContent = async (req, res) => {
 
@@ -168,60 +276,29 @@ export const dislikeContent = async (req, res) => {
   await course.save();
 
   res.json(content);
-
 };
 
 
-import Course from "../models/Course.js";
 
-export const getCourse = async (req, res) => {
-  try {
+// ===============================
+// COMMENT ON CONTENT
+// ===============================
 
-    const course = await Course.findById(req.params.id)
-      .populate("instructor", "fullName")
-      .populate("enrolledStudents", "fullName");
+export const commentContent = async (req, res) => {
 
-    if (!course) {
-      return res.status(404).json({ message: "Course not found" });
-    }
+  const { contentId } = req.params;
+  const { text } = req.body;
 
-    res.json(course);
+  const course = await Course.findOne({ "contents._id": contentId });
 
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+  const content = course.contents.id(contentId);
 
-export const getCourses = async (req, res) => {
-  try {
+  content.comments.push({
+    user: req.user._id,
+    text
+  });
 
-    const courses = await Course.find()
-      .populate("instructor", "fullName");
+  await course.save();
 
-    res.json(courses);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-export const createCourse = async (req, res) => {
-  try {
-
-    const { name, description, level, price, hours } = req.body;
-
-    const course = await Course.create({
-      name,
-      description,
-      level,
-      price,
-      hours,
-      instructor: req.user._id
-    });
-
-    res.json(course);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+  res.json(content);
 };

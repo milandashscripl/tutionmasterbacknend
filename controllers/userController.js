@@ -1,5 +1,7 @@
 import User from "../models/User.js";
 import cloudinary from "../config/cloudinary.js";
+import Course from "../models/Course.js";
+
 
 // READ
 export const getProfile = async (req, res) => {
@@ -94,6 +96,8 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+
+
 // ===============================
 // GET ALL COURSES
 // ===============================
@@ -131,6 +135,7 @@ export const getCourse = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+
 };
 
 
@@ -150,10 +155,11 @@ export const createCourse = async (req, res) => {
       const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
       const upload = await cloudinary.uploader.upload(dataUri, {
-        folder: "courses",
+        folder: "courses"
       });
 
       thumbnailUrl = upload.secure_url;
+
     }
 
     const course = await Course.create({
@@ -163,149 +169,10 @@ export const createCourse = async (req, res) => {
       price,
       hours,
       thumbnail: thumbnailUrl,
-      instructor: req.user._id,
+      instructor: req.user._id
     });
 
     res.json(course);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-
-// ===============================
-// UPLOAD COURSE CONTENT
-// ===============================
-export const uploadCourseContent = async (req, res) => {
-
-  try {
-
-    const { title, type } = req.body;
-    const { courseId } = req.params;
-
-    const file = req.file;
-
-    if (!file) {
-      return res.status(400).json({ message: "File required" });
-    }
-
-    const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-
-    const upload = await cloudinary.uploader.upload(dataUri, {
-      folder: "course_contents",
-      resource_type: "auto",
-    });
-
-    const course = await Course.findById(courseId);
-
-    if (!course) {
-      return res.status(404).json({ message: "Course not found" });
-    }
-
-    course.contents.push({
-      title,
-      type,
-      url: upload.secure_url,
-      uploadedBy: req.user._id
-    });
-
-    await course.save();
-
-    res.json(course);
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// ===============================
-// LIKE CONTENT
-// ===============================
-export const likeContent = async (req, res) => {
-
-  try {
-
-    const { contentId } = req.params;
-    const userId = req.user._id;
-
-    const course = await Course.findOne({ "contents._id": contentId });
-
-    const content = course.contents.id(contentId);
-
-    if (!content.likes.includes(userId)) {
-
-      content.likes.push(userId);
-      content.dislikes.pull(userId);
-
-    }
-
-    await course.save();
-
-    res.json(content);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-
-};
-
-
-// ===============================
-// DISLIKE CONTENT
-// ===============================
-export const dislikeContent = async (req, res) => {
-
-  try {
-
-    const { contentId } = req.params;
-    const userId = req.user._id;
-
-    const course = await Course.findOne({ "contents._id": contentId });
-
-    const content = course.contents.id(contentId);
-
-    if (!content.dislikes.includes(userId)) {
-
-      content.dislikes.push(userId);
-      content.likes.pull(userId);
-
-    }
-
-    await course.save();
-
-    res.json(content);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-
-};
-
-
-// ===============================
-// COMMENT CONTENT
-// ===============================
-export const commentContent = async (req, res) => {
-
-  try {
-
-    const { contentId } = req.params;
-    const { text } = req.body;
-
-    const course = await Course.findOne({ "contents._id": contentId });
-
-    const content = course.contents.id(contentId);
-
-    content.comments.push({
-      user: req.user._id,
-      text
-    });
-
-    await course.save();
-
-    res.json(content);
 
   } catch (err) {
     res.status(500).json({ message: err.message });

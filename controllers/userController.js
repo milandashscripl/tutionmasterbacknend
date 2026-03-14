@@ -179,3 +179,104 @@ export const createCourse = async (req, res) => {
   }
 
 };
+
+
+// ===============================
+// LIKE COURSE
+// ===============================
+export const likeCourse = async (req,res)=>{
+try{
+
+const course = await Course.findById(req.params.id);
+
+if(!course) return res.status(404).json({message:"Course not found"});
+
+const userId = req.user._id;
+
+// remove dislike if exists
+course.dislikes = course.dislikes.filter(
+id => id.toString() !== userId.toString()
+);
+
+// toggle like
+if(course.likes.includes(userId)){
+course.likes = course.likes.filter(
+id => id.toString() !== userId.toString()
+);
+}else{
+course.likes.push(userId);
+}
+
+await course.save();
+
+res.json(course);
+
+}catch(err){
+res.status(500).json({message:err.message});
+}
+};
+
+
+// ===============================
+// DISLIKE COURSE
+// ===============================
+export const dislikeCourse = async (req,res)=>{
+try{
+
+const course = await Course.findById(req.params.id);
+
+if(!course) return res.status(404).json({message:"Course not found"});
+
+const userId = req.user._id;
+
+// remove like
+course.likes = course.likes.filter(
+id => id.toString() !== userId.toString()
+);
+
+// toggle dislike
+if(course.dislikes.includes(userId)){
+course.dislikes = course.dislikes.filter(
+id => id.toString() !== userId.toString()
+);
+}else{
+course.dislikes.push(userId);
+}
+
+await course.save();
+
+res.json(course);
+
+}catch(err){
+res.status(500).json({message:err.message});
+}
+};
+
+
+// ===============================
+// COMMENT COURSE
+// ===============================
+export const addComment = async (req,res)=>{
+try{
+
+const {text} = req.body;
+
+if(!text) return res.status(400).json({message:"Comment required"});
+
+const course = await Course.findById(req.params.id);
+
+if(!course) return res.status(404).json({message:"Course not found"});
+
+course.comments.push({
+user:req.user._id,
+text
+});
+
+await course.save();
+
+res.json(course);
+
+}catch(err){
+res.status(500).json({message:err.message});
+}
+};

@@ -1,65 +1,73 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
-{
-fullName:{ type:String, required:true },
-email:{ type:String, unique:true, sparse:true },
-phone:{ type:String, unique:true, sparse:true },
-password:{ type:String, required:true },
+  {
+    fullName: { type: String, required: true },
+    email: { type: String, unique: true, sparse: true },
+    phone: { type: String, unique: true, sparse: true },
+    password: { type: String, required: true },
+    aadhar: { type: String, required: true },
 
-aadhar:{ type:String, required:true },
+    registrationType: {
+      type: String,
+      enum: ["student", "teacher", "admin"],
+      required: true,
+    },
 
-registrationType:{
-type:String,
-enum:["student","teacher","admin"],
-required:true
-},
+    // Verification & Admin Approval
+    otp: { type: String },
+    isVerified: { type: Boolean, default: false },
+    isApproved: { type: Boolean, default: false },
 
-otp:{ type:String },
+    // Basic Info
+    gender: String,
+    age: Number,
 
-isVerified:{ type:Boolean, default:false },
-isApproved:{ type:Boolean, default:false },
+    address: {
+      text: String,
+      location: {
+        lat: Number,
+        lng: Number,
+      },
+    },
 
-gender:String,
-age:Number,
+    profilePic: {
+      url: String,
+      public_id: String,
+    },
 
-address:{
-text:String,
-location:{
-lat:Number,
-lng:Number
-}
-},
+    // Simplified details for the "Coming Soon" phase
+    studentDetails: {
+      standard: String,
+      board: String,
+      subjects: [String],
+    },
 
-profilePic:{
-url:String,
-public_id:String
-},
+    teacherDetails: {
+      teachingUpto: String,
+      subjectsExpert: [String],
+      distance: Number,
+    },
 
-studentDetails:{
-standard:String,
-board:String,
-subjects:[String]
-},
+    // User Preferences & App State
+    settings: {
+      theme: {
+        type: String,
+        enum: ["light", "blue", "green", "purple"],
+        default: "light",
+      },
+      darkMode: { type: Boolean, default: false },
+      notifications: { type: Boolean, default: true },
+    },
 
-teacherDetails:{
-teachingUpto:String,
-subjectsExpert:[String],
-distance:Number
-},
-
-settings:{
-theme:{
-type:String,
-enum:["light","blue","green","purple"],
-default:"light"
-},
-darkMode:{ type:Boolean, default:false },
-notifications:{ type:Boolean, default:true }
-}
-
-},
-{ timestamps:true }
+    // Optional: Track interest for the "Coming Soon" launch
+    hasOptedInForLaunchAlerts: { type: Boolean, default: false }
+  },
+  { timestamps: true }
 );
 
-export default mongoose.models.User || mongoose.model("User",userSchema);
+// Indexing for faster searches on main identifiers
+userSchema.index({ email: 1 });
+userSchema.index({ phone: 1 });
+
+export default mongoose.models.User || mongoose.model("User", userSchema);

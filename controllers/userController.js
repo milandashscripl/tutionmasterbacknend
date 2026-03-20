@@ -117,3 +117,27 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+// GET MATCHED TEACHERS FOR STUDENT
+export const getMatchedTeachers = async (req, res) => {
+  try {
+    // 1. Ensure the user is a student
+    if (req.user.registrationType !== "student") {
+      return res.status(400).json({ message: "Only students can get matched teachers" });
+    }
+
+    const studentSubjects = req.user.studentDetails?.subjects || [];
+
+    // 2. Find teachers where at least one subject matches
+    const matchedTeachers = await User.find({
+      registrationType: "teacher",
+      isApproved: true,
+      "teacherDetails.subjectsExpert": { $in: studentSubjects }
+    }).select("fullName profilePic teacherDetails address");
+
+    res.json(matchedTeachers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

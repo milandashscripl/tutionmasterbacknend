@@ -6,7 +6,8 @@ import {
   updateProfile,
   deleteUser,
   updateUserSettings,
-  getAllUsers
+  getAllUsers,
+  getMatchedTeachers
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -16,5 +17,7 @@ router.get("/me", auth, getProfile);
 router.put("/me", auth, upload.single("profilePic"), updateProfile);
 router.put("/settings", auth,   updateUserSettings);
 router.delete("/me", auth, deleteUser);
+// Add this line (ensure it's after the 'auth' middleware)
+router.get("/matches", auth, getMatchedTeachers);
 
 export default router;

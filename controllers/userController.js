@@ -141,3 +141,33 @@ export const getMatchedTeachers = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+
+export const hireTeacher = async (req, res) => {
+  const { teacherId } = req.body;
+  const teacher = await User.findById(teacherId);
+  
+  if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
+    teacher.teacherDetails.hiredBy.push(req.user._id);
+    await teacher.save();
+  }
+  res.json({ message: "Teacher hired successfully" });
+};
+
+export const rateTeacher = async (req, res) => {
+  const { teacherId, rating, comment } = req.body;
+  
+  // 1. Create the review
+  await Review.create({ student: req.user._id, teacher: teacherId, rating, comment });
+
+  // 2. Update Teacher's average rating
+  const reviews = await Review.find({ teacher: teacherId });
+  const avg = reviews.reduce((acc, item) => item.rating + acc, 0) / reviews.length;
+
+  await User.findByIdAndUpdate(teacherId, {
+    "teacherDetails.averageRating": avg.toFixed(1),
+    "teacherDetails.totalReviews": reviews.length
+  });
+
+  res.json({ message: "Rating submitted" });
+};

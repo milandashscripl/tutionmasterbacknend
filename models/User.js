@@ -43,11 +43,16 @@ const userSchema = new mongoose.Schema(
       subjects: [String],
     },
 
-    teacherDetails: {
-      teachingUpto: String,
-      subjectsExpert: [String],
-      distance: Number,
-    },
+    // Inside teacherDetails
+teacherDetails: {
+  teachingUpto: String,
+  subjectsExpert: [String],
+  distance: Number,
+  // ADD THESE:
+  averageRating: { type: Number, default: 0 },
+  totalReviews: { type: Number, default: 0 },
+  hiredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] 
+},
 
     // User Preferences & App State
     settings: {

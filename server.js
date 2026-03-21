@@ -31,7 +31,7 @@ const allowedOrigins = [
   "http://localhost:5174",
   "https://tutionmasters.netlify.app",
   "https://tutionmasterbacknend.onrender.com",
-];
+];    
 
 // CORS Setup
 app.use(

@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Review from "../models/Review.js"; // Ensure this model exists in /models/Review.js
 import cloudinary from "../config/cloudinary.js";
 
 // ===============================
@@ -15,7 +16,7 @@ export const updateProfile = async (req, res) => {
   try {
     const updates = { ...req.body };
 
-    // Upload profile pic
+    // Upload profile pic to Cloudinary
     if (req.file && req.file.buffer && process.env.CLOUDINARY_API_KEY) {
       const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
@@ -39,7 +40,6 @@ export const updateProfile = async (req, res) => {
     ];
 
     const payload = {};
-
     Object.keys(updates).forEach((key) => {
       if (allowed.includes(key)) {
         payload[key] = updates[key];
@@ -51,12 +51,8 @@ export const updateProfile = async (req, res) => {
       payload.address = {
         text: updates.addressText || req.user.address?.text,
         location: {
-          lat: updates.lat
-            ? Number(updates.lat)
-            : req.user.address?.location?.lat,
-          lng: updates.lng
-            ? Number(updates.lng)
-            : req.user.address?.location?.lng,
+          lat: updates.lat ? Number(updates.lat) : req.user.address?.location?.lat,
+          lng: updates.lng ? Number(updates.lng) : req.user.address?.location?.lng,
         },
       };
     }
@@ -76,17 +72,19 @@ export const updateProfile = async (req, res) => {
 
 // DELETE USER
 export const deleteUser = async (req, res) => {
-  await User.findByIdAndDelete(req.user._id);
-  res.json({ message: "Account deleted" });
+  try {
+    await User.findByIdAndDelete(req.user._id);
+    res.json({ message: "Account deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
-// UPDATE SETTINGS
 // UPDATE SETTINGS
 export const updateUserSettings = async (req, res) => {
   try {
     const { theme, darkMode, notifications } = req.body;
 
-    // We build an object only with the provided values
     const settingsUpdate = {};
     if (theme !== undefined) settingsUpdate["settings.theme"] = theme;
     if (darkMode !== undefined) settingsUpdate["settings.darkMode"] = darkMode;
@@ -94,7 +92,7 @@ export const updateUserSettings = async (req, res) => {
 
     const updated = await User.findByIdAndUpdate(
       req.user._id,
-      { $set: settingsUpdate }, // Use $set to update specific sub-fields
+      { $set: settingsUpdate },
       { new: true, runValidators: true }
     ).select("-password");
 
@@ -105,7 +103,11 @@ export const updateUserSettings = async (req, res) => {
   }
 };
 
-// GET ALL USERS (for chat)
+// ===============================
+// CHAT & DISCOVERY
+// ===============================
+
+// GET ALL USERS (for chat search)
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({
@@ -118,18 +120,15 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-
 // GET MATCHED TEACHERS FOR STUDENT
 export const getMatchedTeachers = async (req, res) => {
   try {
-    // 1. Ensure the user is a student
     if (req.user.registrationType !== "student") {
       return res.status(400).json({ message: "Only students can get matched teachers" });
     }
 
     const studentSubjects = req.user.studentDetails?.subjects || [];
 
-    // 2. Find teachers where at least one subject matches
     const matchedTeachers = await User.find({
       registrationType: "teacher",
       isApproved: true,
@@ -142,32 +141,63 @@ export const getMatchedTeachers = async (req, res) => {
   }
 };
 
+// ===============================
+// HIRING & RATINGS
+// ===============================
 
+// HIRE A TEACHER
 export const hireTeacher = async (req, res) => {
-  const { teacherId } = req.body;
-  const teacher = await User.findById(teacherId);
-  
-  if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
-    teacher.teacherDetails.hiredBy.push(req.user._id);
-    await teacher.save();
+  try {
+    const { teacherId } = req.body;
+    const teacher = await User.findById(teacherId);
+
+    if (!teacher || teacher.registrationType !== "teacher") {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    // Check if already hired to prevent duplicates
+    if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
+      teacher.teacherDetails.hiredBy.push(req.user._id);
+      await teacher.save();
+    }
+
+    res.json({ message: "Teacher hired successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-  res.json({ message: "Teacher hired successfully" });
 };
 
+// RATE A TEACHER
 export const rateTeacher = async (req, res) => {
-  const { teacherId, rating, comment } = req.body;
-  
-  // 1. Create the review
-  await Review.create({ student: req.user._id, teacher: teacherId, rating, comment });
+  try {
+    const { teacherId, rating, comment } = req.body;
 
-  // 2. Update Teacher's average rating
-  const reviews = await Review.find({ teacher: teacherId });
-  const avg = reviews.reduce((acc, item) => item.rating + acc, 0) / reviews.length;
+    if (!teacherId || !rating) {
+      return res.status(400).json({ message: "Teacher ID and rating are required" });
+    }
 
-  await User.findByIdAndUpdate(teacherId, {
-    "teacherDetails.averageRating": avg.toFixed(1),
-    "teacherDetails.totalReviews": reviews.length
-  });
+    // 1. Create the review document
+    await Review.create({ 
+      student: req.user._id, 
+      teacher: teacherId, 
+      rating: Number(rating), 
+      comment 
+    });
 
-  res.json({ message: "Rating submitted" });
+    // 2. Fetch all reviews for this teacher to calculate new average
+    const reviews = await Review.find({ teacher: teacherId });
+    const totalRatingCount = reviews.length;
+    const averageRating = reviews.reduce((acc, item) => item.rating + acc, 0) / totalRatingCount;
+
+    // 3. Update the Teacher User document
+    await User.findByIdAndUpdate(teacherId, {
+      "teacherDetails.averageRating": Number(averageRating.toFixed(1)),
+      "teacherDetails.totalReviews": totalRatingCount
+    });
+
+    res.json({ message: "Rating submitted successfully" });
+  } catch (err) {
+    console.error("Rate Teacher Error:", err);
+    res.status(500).json({ message: err.message });
+  }
 };

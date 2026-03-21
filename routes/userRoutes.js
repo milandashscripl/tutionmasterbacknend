@@ -9,7 +9,8 @@ import {
   getAllUsers,
   getMatchedTeachers,
   hireTeacher, // ADD THIS
-  rateTeacher  // ADD THIS
+  rateTeacher,  // ADD THIS
+  getTeacherReviews // ADD THIS
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -24,4 +25,5 @@ router.get("/matches", auth, getMatchedTeachers);
 // Add these lines for hiring and rating teachers
 router.post("/hire", auth, hireTeacher);
 router.post("/rate", auth, rateTeacher); 
+router.get("/reviews/:teacherId", auth, getTeacherReviews);
 export default router;

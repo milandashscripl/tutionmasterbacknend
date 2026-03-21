@@ -201,3 +201,18 @@ export const rateTeacher = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// GET REVIEWS FOR A SPECIFIC TEACHER
+export const getTeacherReviews = async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+
+    const reviews = await Review.find({ teacher: teacherId })
+      .populate("student", "fullName profilePic") // Get student details
+      .sort({ createdAt: -1 }); // Newest first
+
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

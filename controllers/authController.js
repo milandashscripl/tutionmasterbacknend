@@ -1,149 +1,131 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import generateToken from "../utils/jwt.js";
-import { getDevOtp } from "../utils/otp.js";
+import { getDevOtp, validateEmail } from "../utils/otp.js"; // Added validateEmail
 import cloudinary from "../config/cloudinary.js";
 
 // REGISTER
-export const register = async (req,res)=>{
-try{
+export const register = async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      password,
+      aadhar,
+      registrationType,
+      gender,
+      age,
+      addressText,
+      lat,
+      lng,
+      /* student */
+      standard,
+      board,
+      subjects,
+      /* teacher */
+      teachingUpto,
+      distance
+    } = req.body;
 
-const{
-fullName,
-email,
-phone,
-password,
-aadhar,
-registrationType,
-gender,
-age,
-addressText,
-lat,
-lng,
+    if (!fullName || !phone || !password || !registrationType) {
+      return res.status(400).json({ message: "Required fields missing" });
+    }
 
-/* student */
+    // --- NEW: MAILBOXLAYER VALIDATION ---
+    if (email) {
+      const isEmailValid = await validateEmail(email);
+      if (!isEmailValid) {
+        return res.status(400).json({ 
+          message: "The email address provided is invalid or undeliverable. Please check for typos." 
+        });
+      }
+    }
 
-standard,
-board,
-subjects,
+    const exists = await User.findOne({
+      $or: [{ email }, { phone }]
+    });
 
-/* teacher */
+    if (exists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
-teachingUpto,
-distance
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-}=req.body;
+    /* OTP GENERATION */
+    // Uses the utility function to check for Dev OTP first
+    const otpToSend = getDevOtp() || (Math.floor(100000 + Math.random() * 900000)).toString();
 
-if(!fullName || !phone || !password || !registrationType){
-return res.status(400).json({message:"Required fields missing"});
-}
+    /* PROFILE PIC */
+    let profilePic = {};
+    if (req.file) {
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const upload = await cloudinary.uploader.upload(dataUri, {
+        folder: "users"
+      });
+      profilePic = {
+        url: upload.secure_url,
+        public_id: upload.public_id
+      };
+    }
 
-const exists = await User.findOne({
-$or:[{email},{phone}]
-});
+    /* SUBJECT ARRAY */
+    let subjectsArray = [];
+    if (subjects) {
+      subjectsArray = subjects.split(",").map(s => s.trim());
+    }
 
-if(exists){
-return res.status(400).json({message:"User already exists"});
-}
+    /* USER DATA CONSTRUCTION */
+    const userData = {
+      fullName,
+      email,
+      phone,
+      password: hashedPassword,
+      aadhar,
+      registrationType,
+      gender,
+      age,
+      address: {
+        text: addressText,
+        location: { lat, lng }
+      },
+      profilePic,
+      otp: otpToSend,
+      isVerified: false,
+      isApproved: false
+    };
 
-const hashedPassword = await bcrypt.hash(password,10);
+    if (registrationType === "student") {
+      userData.studentDetails = {
+        standard,
+        board,
+        subjects: subjectsArray
+      };
+    }
 
-/* OTP */
+    if (registrationType === "teacher") {
+      userData.teacherDetails = {
+        teachingUpto,
+        subjectsExpert: subjectsArray,
+        distance
+      };
+    }
 
-const otpToSend =
-process.env.DEV_OTP ||
-(Math.floor(100000+Math.random()*900000)).toString();
+    const user = await User.create(userData);
 
-/* PROFILE PIC */
+    console.log(`OTP for ${phone} => ${otpToSend}`);
 
-let profilePic={};
+    res.status(201).json({
+      message: "OTP_SENT",
+      phone
+    });
 
-if(req.file){
-const dataUri=`data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
-const upload=await cloudinary.uploader.upload(dataUri,{
-folder:"users"
-});
-
-profilePic={
-url:upload.secure_url,
-public_id:upload.public_id
-};
-}
-
-/* SUBJECT ARRAY */
-
-let subjectsArray=[];
-
-if(subjects){
-subjectsArray=subjects.split(",").map(s=>s.trim());
-}
-
-/* USER DATA */
-
-const userData={
-fullName,
-email,
-phone,
-password:hashedPassword,
-aadhar,
-registrationType,
-gender,
-age,
-
-address:{
-text:addressText,
-location:{
-lat,
-lng
-}
-},
-
-profilePic,
-otp:otpToSend,
-isVerified:false,
-isApproved:false
-};
-
-/* STUDENT */
-
-if(registrationType==="student"){
-
-userData.studentDetails={
-standard,
-board,
-subjects:subjectsArray
-};
-
-}
-
-/* TEACHER */
-
-if(registrationType==="teacher"){
-
-userData.teacherDetails={
-teachingUpto,
-subjectsExpert:subjectsArray,
-distance
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
-}
-
-const user=await User.create(userData);
-
-console.log(`OTP for ${phone} => ${otpToSend}`);
-
-res.status(201).json({
-message:"OTP_SENT",
-phone
-});
-
-}
-catch(err){
-res.status(500).json({message:err.message});
-}
-};
-
+// REGISTER VERIFY
 export const registerVerify = async (req, res) => {
   try {
     const { phone, otp } = req.body;
@@ -152,22 +134,23 @@ export const registerVerify = async (req, res) => {
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const expected = process.env.DEV_OTP || user.otp;
+    // Verify using utility or stored OTP
+    const expected = getDevOtp() || user.otp;
     if (otp !== expected) return res.status(400).json({ message: "Invalid OTP" });
 
     user.isVerified = true;
-    user.otp = undefined;
+    user.otp = undefined; // Clear OTP after verification
     await user.save();
 
     res.json({
-  message: "OTP Verified. Waiting for admin approval"
-});
+      message: "OTP Verified. Waiting for admin approval"
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-
+// LOGIN
 export const login = async (req, res) => {
   try {
     const { emailOrPhone, password } = req.body;
@@ -180,16 +163,14 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-if (!user.isVerified) {
-  return res.status(401).json({ message: "OTP verification required" });
-}
+    if (!user.isVerified) {
+      return res.status(401).json({ message: "OTP verification required" });
+    }
 
-
-/* ADMIN DOES NOT NEED APPROVAL */
-
-if (user.registrationType !== "admin" && !user.isApproved) {
-  return res.status(401).json({ message: "Waiting for admin approval" });
-}
+    /* ADMIN DOES NOT NEED APPROVAL */
+    if (user.registrationType !== "admin" && !user.isApproved) {
+      return res.status(401).json({ message: "Waiting for admin approval" });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -206,7 +187,7 @@ if (user.registrationType !== "admin" && !user.isApproved) {
   }
 };
 
-// FORGOT PASSWORD - send OTP to registered phone
+// FORGOT PASSWORD
 export const forgotPassword = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -215,11 +196,10 @@ export const forgotPassword = async (req, res) => {
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const otpToSend = process.env.DEV_OTP || (Math.floor(100000 + Math.random() * 900000).toString());
+    const otpToSend = getDevOtp() || (Math.floor(100000 + Math.random() * 900000).toString());
     user.otp = otpToSend;
     await user.save();
 
-    // In production send SMS. For now log it and return minimal response.
     console.log(`Password reset OTP for ${phone} => ${otpToSend}`);
 
     return res.json({ message: "OTP_SENT", phone });
@@ -228,16 +208,18 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// RESET PASSWORD - verify OTP then update password
+// RESET PASSWORD
 export const resetPassword = async (req, res) => {
   try {
     const { phone, otp, newPassword } = req.body;
-    if (!phone || !otp || !newPassword) return res.status(400).json({ message: "Phone, OTP and newPassword required" });
+    if (!phone || !otp || !newPassword) {
+      return res.status(400).json({ message: "Phone, OTP and newPassword required" });
+    }
 
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const expected = process.env.DEV_OTP || user.otp;
+    const expected = getDevOtp() || user.otp;
     if (otp !== expected) return res.status(400).json({ message: "Invalid OTP" });
 
     user.password = await bcrypt.hash(newPassword, 10);

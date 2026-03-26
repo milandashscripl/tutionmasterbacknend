@@ -29,6 +29,16 @@ export const updateSettings = async (req, res) => {
       }
     };
 
+    // Add this inside updateSettings BEFORE the findOneAndUpdate call
+const currentSettings = await Settings.findOne();
+if (currentSettings?.logo?.public_id) {
+    try {
+        await cloudinary.uploader.destroy(currentSettings.logo.public_id);
+    } catch (err) {
+        console.error("Cloudinary delete failed:", err);
+    }
+}
+
     // 3. Find the ONLY settings document and update it
     // upsert: true means "Create it if it doesn't exist"
     // new: true means "Return the updated version"

@@ -1,13 +1,32 @@
 import Settings from "../models/AppSettings.js";
 import { v2 as cloudinary } from "cloudinary";
 
+// ✅ 1. ADD THIS: The GET function that was missing
+export const getSettings = async (req, res) => {
+  try {
+    let settings = await Settings.findOne();
+    // If no settings exist yet, create a default one
+    if (!settings) {
+      settings = await Settings.create({
+        siteName: "TuitionMaster",
+        themeColor: "#c9a35e"
+      });
+    }
+    res.status(200).json(settings);
+  } catch (err) {
+    console.error("Fetch Settings Error:", err);
+    res.status(500).json({ message: "Failed to fetch settings" });
+  }
+};
+
+// ✅ 2. YOUR UPDATE function (already solid, just keeping it here)
 export const updateSettings = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No image file provided" });
     }
 
-    // 1. Manually upload the buffer to Cloudinary (Since you use memoryStorage)
+    // Convert memory buffer to DataURI for Cloudinary
     const b64 = Buffer.from(req.file.buffer).toString("base64");
     let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
     
@@ -16,7 +35,7 @@ export const updateSettings = async (req, res) => {
       folder: "tuition_master_branding",
     });
 
-    // 2. Delete old logo if it exists
+    // Delete old logo from Cloudinary if it exists
     const currentSettings = await Settings.findOne();
     if (currentSettings?.logo?.public_id) {
       await cloudinary.uploader.destroy(currentSettings.logo.public_id).catch(err => 
@@ -24,7 +43,7 @@ export const updateSettings = async (req, res) => {
       );
     }
 
-    // 3. Update the database with Cloudinary's response
+    // Update database
     const updateData = {
       logo: {
         url: cldRes.secure_url,

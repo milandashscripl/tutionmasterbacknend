@@ -1,58 +1,40 @@
-import AppSettings from "../models/AppSettings.js";
-import cloudinary from "../config/cloudinary.js";
+const Settings = require("../models/Settings");
+const cloudinary = require("cloudinary").v2;
 
-export const getSettings = async(req,res)=>{
-
-  let settings = await AppSettings.findOne();
-
-  if(!settings){
-    settings = await AppSettings.create({});
+// GET Settings
+exports.getSettings = async (req, res) => {
+  try {
+    let settings = await Settings.findOne();
+    if (!settings) settings = await Settings.create({});
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-
-  res.json(settings);
-
 };
 
-
-export const updateAppSettings = async (req, res) => {
-
+// UPDATE Settings (Logo Upload)
+exports.updateSettings = async (req, res) => {
   try {
-
-    let settings = await AppSettings.findOne();
-
-    if (!settings) {
-      settings = await AppSettings.create({});
-    }
-
-    const { siteName, themeColor, fontFamily } = req.body;
-
-    if (siteName) settings.siteName = siteName;
-    if (themeColor) settings.themeColor = themeColor;
-    if (fontFamily) settings.fontFamily = fontFamily;
+    let settings = await Settings.findOne();
+    if (!settings) settings = new Settings();
 
     if (req.file) {
+      // If an old logo exists, delete it from Cloudinary first
+      if (settings.logo?.public_id) {
+        await cloudinary.uploader.destroy(settings.logo.public_id);
+      }
 
-      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
-      const upload = await cloudinary.uploader.upload(dataUri, {
-        folder: "settings"
-      });
-
+      // Upload new file to Cloudinary
+      // req.file.path comes from Multer-Storage-Cloudinary
       settings.logo = {
-        url: upload.secure_url,
-        public_id: upload.public_id
+        url: req.file.path, 
+        public_id: req.file.filename
       };
-
     }
 
     await settings.save();
-
     res.json(settings);
-
   } catch (err) {
-
-    res.status(500).json({ message: err.message });
-
+    res.status(500).json({ message: "Upload failed" });
   }
-
 };

@@ -216,3 +216,21 @@ export const getTeacherReviews = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// GET TOP RATED TEACHERS (For Landing Page)
+export const getTopTutors = async (req, res) => {
+  try {
+    const topTutors = await User.find({
+      registrationType: "teacher",
+      isApproved: true,
+      "teacherDetails.averageRating": { $gte: 4 } // Only 4 stars and above
+    })
+    .sort({ "teacherDetails.averageRating": -1 })
+    .limit(6) // Top 6 for the grid
+    .select("fullName profilePic teacherDetails address");
+
+    res.json(topTutors);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

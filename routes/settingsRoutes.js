@@ -1,9 +1,22 @@
-import express from "express";
-import {getSettings,updateAppSettings} from "../controllers/settingsController.js";
+const router = require("express").Router();
+const { getSettings, updateSettings } = require("../controllers/settingsController");
+const { adminAuth } = require("../middleware/auth"); // Your admin protection
+const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 
-const router = express.Router();
+// Cloudinary Config (Should be in your main server file or .env)
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "tuition_master_branding",
+    allowed_formats: ["jpg", "png", "jpeg", "svg"],
+  },
+});
 
-router.get("/",getSettings);
-router.put("/",updateAppSettings);
+const upload = multer({ storage: storage });
 
-export default router;
+router.get("/", getSettings);
+router.put("/", adminAuth, upload.single("logo"), updateSettings);
+
+module.exports = router;

@@ -124,34 +124,34 @@ app.get("/", (req, res) => {
 // 👑 CREATE DEFAULT ADMIN
 // ===============================
 
-const createDefaultAdmin = async () => {
-  try {
-    const adminEmail = "tutionadmin@gmail.com";
+// const createDefaultAdmin = async () => {
+//   try {
+//     const adminEmail = "tutionadmin@gmail.com";
 
-    const existingAdmin = await User.findOne({ email: adminEmail });
+//     const existingAdmin = await User.findOne({ email: adminEmail });
 
-    if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash("Admin01@abc", 10);
+//     if (!existingAdmin) {
+//       const hashedPassword = await bcrypt.hash("Admin01@abc", 10);
 
-      await User.create({
-        fullName: "System Admin",
-        email: adminEmail,
-        phone: "9999999999",
-        password: hashedPassword,
-        aadhar: "000000000000",
-        registrationType: "admin",
-        isVerified: true,
-        isApproved: true,
-      });
+//       await User.create({
+//         fullName: "System Admin",
+//         email: adminEmail,
+//         phone: "9999999999",
+//         password: hashedPassword,
+//         aadhar: "000000000000",
+//         registrationType: "admin",
+//         isVerified: true,
+//         isApproved: true,
+//       });
 
-      console.log("✅ Default Admin Created");
-    } else {
-      console.log("ℹ️ Admin already exists");
-    }
-  } catch (err) {
-    console.error("❌ Admin creation failed:", err.message);
-  }
-};
+//       console.log("✅ Default Admin Created");
+//     } else {
+//       console.log("ℹ️ Admin already exists");
+//     }
+//   } catch (err) {
+//     console.error("❌ Admin creation failed:", err.message);
+//   }
+// };
 
 // ===============================
 // 🚀 CONNECT DB & START SERVER
@@ -163,7 +163,7 @@ connectDB()
   .then(async () => {
     console.log("✅ Database Connected");
 
-    await createDefaultAdmin();
+    // await createDefaultAdmin();
 
     httpServer.listen(PORT, () => {
       console.log(`🔥 Server running on port ${PORT}`);

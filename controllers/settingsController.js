@@ -15,33 +15,34 @@ export const getSettings = async (req, res) => {
 
 export const updateSettings = async (req, res) => {
   try {
-    // 1. Check if file exists
+    // 1. Check if a file was actually uploaded by the middleware
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({ message: "No image file provided" });
     }
 
-    let settings = await Settings.findOne();
-    if (!settings) settings = new Settings();
-
-    // 2. Delete old logo from Cloudinary if it exists
-    if (settings.logo?.public_id) {
-      await cloudinary.uploader.destroy(settings.logo.public_id);
-    }
-
-    // 3. Update with new data
-    // Note: multer-storage-cloudinary provides 'path' for the URL 
-    // and 'filename' for the public_id
-    settings.logo = {
-      url: req.file.path || req.file.secure_url, 
-      public_id: req.file.filename || req.file.public_id
+    // 2. Prepare the update data
+    // Use req.file.path (URL) and req.file.filename (Public ID) from Cloudinary storage
+    const updateData = {
+      logo: {
+        url: req.file.path,
+        public_id: req.file.filename,
+      }
     };
 
-    await settings.save();
+    // 3. Find the ONLY settings document and update it
+    // upsert: true means "Create it if it doesn't exist"
+    // new: true means "Return the updated version"
+    const updatedSettings = await Settings.findOneAndUpdate(
+      {}, // Empty filter finds the first/only document
+      { $set: updateData }, 
+      { upsert: true, new: true, runValidators: true }
+    );
+
+    console.log("Database updated successfully:", updatedSettings.logo.url);
     
-    // 4. Return the updated object
-    res.status(200).json(settings);
+    res.status(200).json(updatedSettings);
   } catch (err) {
-    console.error("Backend Update Error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Update Error:", err);
+    res.status(500).json({ message: "Server error during logo update", error: err.message });
   }
 };

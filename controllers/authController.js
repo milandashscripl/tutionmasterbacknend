@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import generateToken from "../utils/jwt.js";
-import { getDevOtp, validateEmail } from "../utils/otp.js"; // Added validateEmail
+import { getDevOtp } from "../utils/otp.js"; 
 import cloudinary from "../config/cloudinary.js";
 
 // REGISTER
@@ -32,16 +32,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
-    // --- NEW: MAILBOXLAYER VALIDATION ---
-    if (email) {
-      const isEmailValid = await validateEmail(email);
-      if (!isEmailValid) {
-        return res.status(400).json({ 
-          message: "The email address provided is invalid or undeliverable. Please check for typos." 
-        });
-      }
-    }
-
+    // Check if user already exists
     const exists = await User.findOne({
       $or: [{ email }, { phone }]
     });
@@ -53,7 +44,6 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     /* OTP GENERATION */
-    // Uses the utility function to check for Dev OTP first
     const otpToSend = getDevOtp() || (Math.floor(100000 + Math.random() * 900000)).toString();
 
     /* PROFILE PIC */
@@ -134,12 +124,11 @@ export const registerVerify = async (req, res) => {
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    // Verify using utility or stored OTP
     const expected = getDevOtp() || user.otp;
     if (otp !== expected) return res.status(400).json({ message: "Invalid OTP" });
 
     user.isVerified = true;
-    user.otp = undefined; // Clear OTP after verification
+    user.otp = undefined; 
     await user.save();
 
     res.json({
@@ -167,7 +156,6 @@ export const login = async (req, res) => {
       return res.status(401).json({ message: "OTP verification required" });
     }
 
-    /* ADMIN DOES NOT NEED APPROVAL */
     if (user.registrationType !== "admin" && !user.isApproved) {
       return res.status(401).json({ message: "Waiting for admin approval" });
     }

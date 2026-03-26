@@ -1,23 +1,13 @@
 import mongoose from "mongoose";
 
-const AppSettingsSchema = new mongoose.Schema({
-
-siteName:{
-type:String,
-default:"TuitionMaster"
-},
-
-themeColor:{
-type:String,
-default:"#6366f1"
-},
-
-fontFamily:{
-type:String,
-default:"Poppins"
-}
-
+const SettingsSchema = new mongoose.Schema({
+  logo: {
+    url: { type: String, default: "" },
+    public_id: { type: String, default: "" }
+  },
+  // You can keep these for future use
+  siteName: { type: String, default: "TuitionMaster" },
+  themeColor: { type: String, default: "#c9a35e" }
 });
 
-export default mongoose.models.AppSettings ||
-mongoose.model("AppSettings", AppSettingsSchema);
+export default mongoose.models.Settings || mongoose.model("Settings", SettingsSchema);

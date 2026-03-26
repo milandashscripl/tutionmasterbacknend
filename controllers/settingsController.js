@@ -1,11 +1,9 @@
 import Settings from "../models/AppSettings.js";
 import { v2 as cloudinary } from "cloudinary";
 
-// GET Settings
 export const getSettings = async (req, res) => {
   try {
     let settings = await Settings.findOne();
-    // Create a default settings doc if none exists
     if (!settings) settings = await Settings.create({});
     res.json(settings);
   } catch (err) {
@@ -13,34 +11,37 @@ export const getSettings = async (req, res) => {
   }
 };
 
-// UPDATE Settings (Logo Upload)
+// controllers/settingsController.js
+
 export const updateSettings = async (req, res) => {
   try {
+    // 1. Check if file exists
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
     let settings = await Settings.findOne();
     if (!settings) settings = new Settings();
 
-    if (req.file) {
-      // If an old logo exists, delete it from Cloudinary first
-      if (settings.logo?.public_id) {
-        try {
-          await cloudinary.uploader.destroy(settings.logo.public_id);
-        } catch (delErr) {
-          console.error("Old logo deletion failed:", delErr);
-          // We continue anyway so the new logo can be saved
-        }
-      }
-
-      // req.file.path and req.file.filename are provided by multer-storage-cloudinary
-      settings.logo = {
-        url: req.file.path, 
-        public_id: req.file.filename
-      };
+    // 2. Delete old logo from Cloudinary if it exists
+    if (settings.logo?.public_id) {
+      await cloudinary.uploader.destroy(settings.logo.public_id);
     }
 
+    // 3. Update with new data
+    // Note: multer-storage-cloudinary provides 'path' for the URL 
+    // and 'filename' for the public_id
+    settings.logo = {
+      url: req.file.path || req.file.secure_url, 
+      public_id: req.file.filename || req.file.public_id
+    };
+
     await settings.save();
-    res.json(settings);
+    
+    // 4. Return the updated object
+    res.status(200).json(settings);
   } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ message: "Upload failed" });
+    console.error("Backend Update Error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };

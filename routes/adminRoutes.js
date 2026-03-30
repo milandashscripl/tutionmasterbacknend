@@ -10,6 +10,8 @@ import {
   getAllUsers,
   updateNavbarLogo,
 } from "../controllers/adminController.js";
+import { getSettings, updateSettings } from "../controllers/settingsController.js";
+import upload from "../midllewares/upload.js";
 
 const router = express.Router();
 
@@ -27,4 +29,12 @@ router.delete("/reject/:userId", rejectUser);
 router.delete("/remove/:userId", removeUser);
 
 router.put("/settings/logo", updateNavbarLogo);
+// Public route (place this BEFORE router.use(protect) or in a separate file)
+router.get("/settings/public", getSettings);
+
+// Protected Admin routes
+router.use(protect);
+router.use(allowRoles("admin"));
+// ... your existing routes ...
+router.put("/settings/update", upload.single("logo"), updateSettings);
 export default router;

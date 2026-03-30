@@ -1,65 +1,55 @@
 import Settings from "../models/AppSettings.js";
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../config/cloudinary.js";
+import streamifier from "streamifier";
 
-// ✅ 1. ADD THIS: The GET function that was missing
+// Helper for Cloudinary Stream Upload
+const uploadToCloudinary = (fileBuffer, folder) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: folder },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(fileBuffer).pipe(stream);
+  });
+};
+
+// GET SETTINGS (Public - No Auth Required)
 export const getSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne();
-    // If no settings exist yet, create a default one
-    if (!settings) {
-      settings = await Settings.create({
-        siteName: "TuitionMaster",
-        themeColor: "#c9a35e"
-      });
-    }
-    res.status(200).json(settings);
+    const settings = await Settings.findOne();
+    res.json(settings || { siteName: "TuitionMaster", themeColor: "#c9a35e", logo: { url: "" } });
   } catch (err) {
-    console.error("Fetch Settings Error:", err);
-    res.status(500).json({ message: "Failed to fetch settings" });
+    res.status(500).json({ message: err.message });
   }
 };
 
-// ✅ 2. YOUR UPDATE function (already solid, just keeping it here)
+// UPDATE SETTINGS (Admin Only)
 export const updateSettings = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image file provided" });
-    }
+    let settings = await Settings.findOne();
+    if (!settings) settings = new Settings();
 
-    // Convert memory buffer to DataURI for Cloudinary
-    const b64 = Buffer.from(req.file.buffer).toString("base64");
-    let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-    
-    const cldRes = await cloudinary.uploader.upload(dataURI, {
-      resource_type: "auto",
-      folder: "tuition_master_branding",
-    });
+    const { siteName, themeColor } = req.body;
+    if (siteName) settings.siteName = siteName;
+    if (themeColor) settings.themeColor = themeColor;
 
-    // Delete old logo from Cloudinary if it exists
-    const currentSettings = await Settings.findOne();
-    if (currentSettings?.logo?.public_id) {
-      await cloudinary.uploader.destroy(currentSettings.logo.public_id).catch(err => 
-        console.error("Cloudinary delete failed:", err)
-      );
-    }
-
-    // Update database
-    const updateData = {
-      logo: {
-        url: cldRes.secure_url,
-        public_id: cldRes.public_id,
+    // Handle Logo Upload via Cloudinary
+    if (req.file) {
+      // Cleanup old logo if exists
+      if (settings.logo?.public_id) {
+        await cloudinary.uploader.destroy(settings.logo.public_id);
       }
-    };
+      
+      const result = await uploadToCloudinary(req.file.buffer, "site_branding");
+      settings.logo = { url: result.secure_url, public_id: result.public_id };
+    }
 
-    const updatedSettings = await Settings.findOneAndUpdate(
-      {}, 
-      { $set: updateData }, 
-      { upsert: true, new: true }
-    );
-
-    res.status(200).json(updatedSettings);
+    await settings.save();
+    res.json(settings);
   } catch (err) {
-    console.error("Update Error:", err);
-    res.status(500).json({ message: "Logo update failed", error: err.message });
+    res.status(500).json({ message: err.message });
   }
 };

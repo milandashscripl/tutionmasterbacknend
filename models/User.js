@@ -72,7 +72,6 @@ teacherDetails: {
 );
 
 // Indexing for faster searches on main identifiers
-userSchema.index({ email: 1 });
-userSchema.index({ phone: 1 });
+// Note: unique fields already have indexes, so no need to add explicit ones
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

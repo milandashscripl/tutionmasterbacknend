@@ -19,8 +19,16 @@ const uploadToCloudinary = (fileBuffer, folder) => {
 // GET SETTINGS (Public - No Auth Required)
 export const getSettings = async (req, res) => {
   try {
-    const settings = await Settings.findOne();
-    res.json(settings || { siteName: "TuitionMaster", themeColor: "#c9a35e", logo: { url: "" } });
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = await Settings.create({
+        siteName: "TuitionMaster",
+        themeColor: "#c9a35e",
+        logo: { url: "", public_id: "" }
+      });
+    }
+    console.log("Settings returned:", settings);
+    res.json(settings);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

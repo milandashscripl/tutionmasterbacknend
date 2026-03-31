@@ -418,3 +418,26 @@ export const enrollCourse = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// TRACK VIDEO VIEW
+export const trackVideoView = async (req, res) => {
+  try {
+    const { courseId, videoIndex } = req.params;
+    const course = await Course.findById(courseId);
+
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    if (!course.videos[videoIndex]) return res.status(404).json({ message: "Video not found" });
+
+    // Increment view count for the video
+    if (!course.videos[videoIndex].viewCount) {
+      course.videos[videoIndex].viewCount = 0;
+    }
+    course.videos[videoIndex].viewCount++;
+
+    await course.save();
+    res.json({ success: true, viewCount: course.videos[videoIndex].viewCount });
+  } catch (err) {
+    console.error("Track view error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};

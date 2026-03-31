@@ -23,5 +23,6 @@ router.post("/:courseId/comment", protect, courseController.addComment);
 router.post("/:courseId/comment/:commentId/reply", protect, courseController.replyComment);
 router.post("/:courseId/review", protect, courseController.addReview);
 router.post("/:courseId/enroll", protect, courseController.enrollCourse);
+router.post("/:courseId/video/:videoIndex/view", protect, courseController.trackVideoView);
 
 export default router;

@@ -39,6 +39,7 @@ const courseSchema = new mongoose.Schema(
         },
         thumbnail: String, // Cloudinary image URL
         uploadedAt: { type: Date, default: Date.now },
+        viewCount: { type: Number, default: 0 }, // Track video views
       },
     ],
 

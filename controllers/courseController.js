@@ -134,11 +134,26 @@ export const deleteCourse = async (req, res) => {
 // ADD VIDEO TO COURSE
 export const addVideo = async (req, res) => {
   try {
+    console.log("Add video request received");
+    console.log("Body:", req.body);
+    console.log("File:", req.file ? "File present" : "No file");
+
     const { title, description, duration, type } = req.body;
+
+    // Validate required fields
+    if (!title || !description || !duration || !type) {
+      console.log("Missing required fields:", { title: !!title, description: !!description, duration: !!duration, type: !!type });
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
     const course = await Course.findById(req.params.courseId);
 
-    if (!course) return res.status(404).json({ message: "Course not found" });
+    if (!course) {
+      console.log("Course not found:", req.params.courseId);
+      return res.status(404).json({ message: "Course not found" });
+    }
     if (course.teacher.toString() !== req.user._id.toString()) {
+      console.log("Not authorized - course teacher:", course.teacher, "user:", req.user._id);
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -147,33 +162,81 @@ export const addVideo = async (req, res) => {
 
     // Upload video to Cloudinary if file is provided
     if (req.file && req.file.buffer && process.env.CLOUDINARY_API_KEY) {
-      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      console.log("Uploading to Cloudinary...");
+      console.log("File size:", req.file.size, "bytes");
+      console.log("File type:", req.file.mimetype);
 
-      const upload = await cloudinary.uploader.upload(dataUri, {
-        folder: "course-videos",
-        resource_type: "video",
-        // Generate thumbnail automatically
-        eager: [
-          { width: 300, height: 200, crop: "fill", gravity: "auto" }
-        ]
-      });
+      try {
+        const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
-      videoUrl = upload.secure_url;
-      // Use the first eager transformation as thumbnail
-      thumbnail = upload.eager ? upload.eager[0].secure_url : upload.secure_url.replace('.mp4', '.jpg');
+        // First, try uploading without eager transformations
+        const upload = await cloudinary.uploader.upload(dataUri, {
+          folder: "course-videos",
+          resource_type: "video"
+        });
+
+        videoUrl = upload.secure_url;
+
+        // Try to generate thumbnail separately
+        try {
+          // For thumbnail, we'll use a smaller version of the video
+          const thumbnailUpload = await cloudinary.uploader.upload(dataUri, {
+            folder: "course-videos/thumbnails",
+            resource_type: "video",
+            width: 300,
+            height: 200,
+            crop: "fill",
+            gravity: "auto",
+            format: "jpg",
+            quality: "auto"
+          });
+          thumbnail = thumbnailUpload.secure_url;
+          console.log("Thumbnail generated:", thumbnail);
+        } catch (thumbnailError) {
+          console.log("Thumbnail generation failed, using fallback:", thumbnailError.message);
+          // Fallback: try to get a frame from the video URL
+          try {
+            thumbnail = cloudinary.url(videoUrl, {
+              width: 300,
+              height: 200,
+              crop: "fill",
+              gravity: "auto",
+              format: "jpg",
+              quality: "auto"
+            });
+            console.log("Fallback thumbnail URL:", thumbnail);
+          } catch (fallbackError) {
+            console.log("Fallback thumbnail failed:", fallbackError.message);
+            // Final fallback: use the video URL as thumbnail
+            thumbnail = videoUrl.replace(/\.[^/.]+$/, ".jpg");
+          }
+        }
+
+        console.log("Cloudinary upload successful:", videoUrl);
+      } catch (cloudinaryError) {
+        console.error("Cloudinary upload failed:", cloudinaryError);
+        return res.status(500).json({ message: "Failed to upload video to cloud storage: " + cloudinaryError.message });
+      }
+    } else {
+      console.log("No file provided or Cloudinary not configured");
+      console.log("req.file:", !!req.file);
+      console.log("req.file.buffer:", !!(req.file && req.file.buffer));
+      console.log("CLOUDINARY_API_KEY:", !!process.env.CLOUDINARY_API_KEY);
+      return res.status(400).json({ message: "Video file is required" });
     }
 
     course.videos.push({
       title,
       description,
       url: videoUrl,
-      duration: parseInt(duration),
+      duration: isNaN(parseInt(duration)) ? 0 : parseInt(duration),
       type,
       thumbnail,
       uploadedAt: new Date(),
     });
 
     await course.save();
+    console.log("Video added successfully to course");
     res.json(course);
   } catch (err) {
     console.error("Add video error:", err);

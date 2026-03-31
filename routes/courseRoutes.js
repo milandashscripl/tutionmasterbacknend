@@ -1,7 +1,7 @@
 import express from "express";
 import * as courseController from "../controllers/courseController.js";
 import { protect } from "../midllewares/authMiddleware.js";
-import upload from "../midllewares/upload.js";
+import upload, { uploadVideo } from "../midllewares/upload.js";
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ router.get("/:courseId", courseController.getCourse);
 router.post("/", protect, courseController.createCourse);
 router.put("/:courseId", protect, courseController.updateCourse);
 router.delete("/:courseId", protect, courseController.deleteCourse);
-router.post("/:courseId/video", protect, upload.single("video"), courseController.addVideo);
+router.post("/:courseId/video", protect, uploadVideo.single("video"), courseController.addVideo);
 
 // ENGAGEMENT - All Users
 router.post("/:courseId/like", protect, courseController.likeCourse);

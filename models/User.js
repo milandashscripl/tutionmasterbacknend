@@ -48,17 +48,21 @@ teacherDetails: {
   teachingUpto: String,
   subjectsExpert: [String],
   distance: Number,
-  // ADD THESE:
   averageRating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
-  hiredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] 
+  hiredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  fees: {
+    // Fee range for monthly tuition in rupees
+    minFee: { type: Number, default: 0 },
+    maxFee: { type: Number, default: 0 },
+  },
 },
 
     // User Preferences & App State
     settings: {
       theme: {
         type: String,
-        enum: ["light", "blue", "green", "purple"],
+        enum: ["light", "ocean", "forest", "sunset", "amethyst", "rose", "emerald", "gold"],
         default: "light",
       },
       darkMode: { type: Boolean, default: false },

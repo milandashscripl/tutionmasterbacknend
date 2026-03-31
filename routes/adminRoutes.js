@@ -17,22 +17,14 @@ import upload from "../midllewares/upload.js";
 
 const router = express.Router();
 
+// Public route (must be before middleware)
+router.get("/settings/public", getSettings);
+
+// Protected Admin routes
 router.use(protect);
 router.use(allowRoles("admin"));
 
 router.get("/users", getAllUsers);
-
-router.get("/pending", getPendingUsers);
-
-router.put("/approve/:userId", approveUser);
-
-router.delete("/reject/:userId", rejectUser);
-
-router.delete("/remove/:userId", removeUser);
-
-router.put("/settings/logo", updateNavbarLogo);
-// Public route (place this BEFORE router.use(protect) or in a separate file)
-router.get("/settings/public", getSettings);
 
 // Landing page settings routes
 router.get("/landing-page", getLandingPageSettings);

@@ -134,7 +134,7 @@ export const deleteCourse = async (req, res) => {
 // ADD VIDEO TO COURSE
 export const addVideo = async (req, res) => {
   try {
-    const { title, description, url, duration, type, thumbnail } = req.body;
+    const { title, description, duration, type } = req.body;
     const course = await Course.findById(req.params.courseId);
 
     if (!course) return res.status(404).json({ message: "Course not found" });
@@ -142,18 +142,41 @@ export const addVideo = async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    let videoUrl = "";
+    let thumbnail = "";
+
+    // Upload video to Cloudinary if file is provided
+    if (req.file && req.file.buffer && process.env.CLOUDINARY_API_KEY) {
+      const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+      const upload = await cloudinary.uploader.upload(dataUri, {
+        folder: "course-videos",
+        resource_type: "video",
+        // Generate thumbnail automatically
+        eager: [
+          { width: 300, height: 200, crop: "fill", gravity: "auto" }
+        ]
+      });
+
+      videoUrl = upload.secure_url;
+      // Use the first eager transformation as thumbnail
+      thumbnail = upload.eager ? upload.eager[0].secure_url : upload.secure_url.replace('.mp4', '.jpg');
+    }
+
     course.videos.push({
       title,
       description,
-      url,
-      duration,
+      url: videoUrl,
+      duration: parseInt(duration),
       type,
       thumbnail,
+      uploadedAt: new Date(),
     });
 
     await course.save();
     res.json(course);
   } catch (err) {
+    console.error("Add video error:", err);
     res.status(500).json({ message: err.message });
   }
 };

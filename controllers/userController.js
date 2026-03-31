@@ -12,41 +12,77 @@ export const getProfile = async (req, res) => {
 };
 
 // UPDATE PROFILE
+// UPDATE PROFILE
 export const updateProfile = async (req, res) => {
   try {
     const updates = { ...req.body };
+    const payload = {};
 
-    // Upload profile pic to Cloudinary
+    // 1. Handle File Upload (Cloudinary)
     if (req.file && req.file.buffer && process.env.CLOUDINARY_API_KEY) {
       const dataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
       const upload = await cloudinary.uploader.upload(dataUri, {
         folder: "users",
       });
-
-      updates.profilePic = {
+      payload.profilePic = {
         url: upload.secure_url,
         public_id: upload.public_id,
       };
     }
 
+    // 2. Allowed Top-Level Fields
     const allowed = [
       "fullName",
       "email",
       "phone",
       "aadhar",
-      "registrationType",
-      "profilePic",
+      "gender",
+      "age",
+      "addressText"
     ];
 
-    const payload = {};
-    Object.keys(updates).forEach((key) => {
-      if (allowed.includes(key)) {
+    allowed.forEach((key) => {
+      if (updates[key] !== undefined) {
         payload[key] = updates[key];
       }
     });
 
-    // Address handling
+    // 3. Handle Nested Teacher Details (Parsed from JSON String)
+    if (updates.teacherDetails) {
+      try {
+        const tDetails = JSON.parse(updates.teacherDetails);
+        payload.teacherDetails = {
+          ...req.user.teacherDetails?.toObject(), // Keep existing fields like averageRating/hiredBy
+          teachingUpto: tDetails.teachingUpto,
+          distance: Number(tDetails.distance),
+          subjectsExpert: tDetails.subjectsExpert,
+          pricing: tDetails.pricing, // This matches the string format from Register
+          fees: {
+            minFee: Number(tDetails.minFee),
+            maxFee: Number(tDetails.maxFee)
+          }
+        };
+      } catch (e) {
+        console.error("Teacher details parse error", e);
+      }
+    }
+
+    // 4. Handle Nested Student Details (Parsed from JSON String)
+    if (updates.studentDetails) {
+      try {
+        const sDetails = JSON.parse(updates.studentDetails);
+        payload.studentDetails = {
+          ...req.user.studentDetails?.toObject(),
+          standard: sDetails.standard,
+          board: sDetails.board,
+          subjects: sDetails.subjects
+        };
+      } catch (e) {
+        console.error("Student details parse error", e);
+      }
+    }
+
+    // 5. Unified Address Handling
     if (updates.addressText || updates.lat || updates.lng) {
       payload.address = {
         text: updates.addressText || req.user.address?.text,
@@ -59,8 +95,8 @@ export const updateProfile = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
-      payload,
-      { new: true }
+      { $set: payload }, // Use $set to prevent overwriting other fields
+      { new: true, runValidators: true }
     ).select("-password");
 
     res.json(updatedUser);

@@ -25,7 +25,10 @@ export const register = async (req, res) => {
       subjects,
       /* teacher */
       teachingUpto,
-      distance
+      distance,
+      minFee,
+      maxFee,
+      pricing
     } = req.body;
 
     if (!fullName || !phone || !password || !registrationType) {
@@ -94,10 +97,28 @@ export const register = async (req, res) => {
     }
 
     if (registrationType === "teacher") {
+      // Parse per-standard pricing string if provided: "10:2500,11:3000"
+      let pricingArr = [];
+      if (pricing) {
+        pricingArr = pricing
+          .split(",")
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((entry) => {
+            const [std, val] = entry.split(":").map((x) => x.trim());
+            return { standard: std, price: Number(val || 0) };
+          })
+          .filter((item) => item.standard && item.price > 0);
+      }
       userData.teacherDetails = {
         teachingUpto,
         subjectsExpert: subjectsArray,
-        distance
+        distance,
+        fees: {
+          minFee: Number(minFee) || 0,
+          maxFee: Number(maxFee) || 0,
+        },
+        pricing: pricingArr,
       };
     }
 

@@ -148,9 +148,9 @@ export const getMatchedTeachers = async (req, res) => {
 // HIRE AND PAY TEACHER (student pays first month fee)
 export const hireTeacher = async (req, res) => {
   try {
-    const { teacherId, amount } = req.body;
-    if (!teacherId || !amount || amount <= 0) {
-      return res.status(400).json({ message: "teacherId and positive amount are required" });
+    const { teacherId, amount: amountInput } = req.body;
+    if (!teacherId) {
+      return res.status(400).json({ message: "teacherId is required" });
     }
 
     const teacher = await User.findById(teacherId);
@@ -158,14 +158,29 @@ export const hireTeacher = async (req, res) => {
       return res.status(404).json({ message: "Teacher not found" });
     }
 
-    // Ensure payment is not less than minimum teacher fee
-    const minFee = teacher.teacherDetails?.fees?.minFee || 0;
-    if (amount < minFee) {
-      return res.status(400).json({ message: `Amount must be at least teacher min fee ${minFee}` });
+    const student = await User.findById(req.user._id);
+    const studentStandard = student.studentDetails?.standard;
+    if (!studentStandard) {
+      return res.status(400).json({ message: "Student standard not set in profile" });
+    }
+
+    // Determine base price for this student's standard using teacher-defined pricing
+    const priceEntry = (teacher.teacherDetails?.pricing || []).find((p) => p.standard === studentStandard);
+    let baseMonthlyFee = priceEntry?.price || teacher.teacherDetails?.fees?.minFee || 0;
+    if (!baseMonthlyFee || baseMonthlyFee <= 0) {
+      return res.status(400).json({ message: "Teacher has not set a valid price for your standard" });
+    }
+
+    // Apply rating-based price hike
+    const rating = Number(teacher.teacherDetails?.averageRating) || 0;
+    const hikeMultiplier = 1 + Math.max(0, rating - 4) * 0.1;
+    const amount = Math.ceil(baseMonthlyFee * hikeMultiplier);
+
+    if (amountInput && Number(amountInput) !== amount) {
+      return res.status(400).json({ message: `Invalid amount. Required prepayment based on teacher setting: ${amount}` });
     }
 
     // Create or update student hire record
-    const student = await User.findById(req.user._id);
     const existingHire = student.studentDetails?.hiredTeachers?.find((item) => item.teacher.toString() === teacherId);
 
     const nextDueAt = new Date();
@@ -192,7 +207,8 @@ export const hireTeacher = async (req, res) => {
     }
 
     // Mark teacher as hired and account payment info
-    if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
+    teacher.teacherDetails.hiredBy = teacher.teacherDetails.hiredBy || [];
+    if (!teacher.teacherDetails.hiredBy.find((id) => id.toString() === req.user._id.toString())) {
       teacher.teacherDetails.hiredBy.push(req.user._id);
     }
     teacher.teacherDetails.salaryDue = (teacher.teacherDetails.salaryDue || 0) + amount;
@@ -209,7 +225,7 @@ export const hireTeacher = async (req, res) => {
     await student.save();
     await teacher.save();
 
-    res.json({ message: "Teacher hired and payment recorded", nextDueAt });
+    res.json({ message: "Teacher hired and payment recorded", amount, nextDueAt });
   } catch (err) {
     console.error("Hire teacher error:", err);
     res.status(500).json({ message: err.message });
@@ -328,11 +344,11 @@ export const rateTeacher = async (req, res) => {
     }
 
     // 1. Create the review document
-    await Review.create({ 
-      student: req.user._id, 
-      teacher: teacherId, 
-      rating: Number(rating), 
-      comment 
+    await Review.create({
+      student: req.user._id,
+      teacher: teacherId,
+      rating: Number(rating),
+      comment,
     });
 
     // 2. Fetch all reviews for this teacher to calculate new average
@@ -341,12 +357,34 @@ export const rateTeacher = async (req, res) => {
     const averageRating = reviews.reduce((acc, item) => item.rating + acc, 0) / totalRatingCount;
 
     // 3. Update the Teacher User document
-    await User.findByIdAndUpdate(teacherId, {
-      "teacherDetails.averageRating": Number(averageRating.toFixed(1)),
-      "teacherDetails.totalReviews": totalRatingCount
-    });
+    const teacher = await User.findById(teacherId);
+    const oldRating = teacher.teacherDetails?.averageRating || 0;
+    const newRatingValue = Number(averageRating.toFixed(1));
 
-    res.json({ message: "Rating submitted successfully" });
+    // Apply auto price hike for higher ratings (4.0+ gets incrementally higher rate)
+    if (oldRating < 4.0 && newRatingValue >= 4.0) {
+      // Increase existing pricing by 10% when crossing from <4.0 to >=4.0
+      teacher.teacherDetails.pricing = (teacher.teacherDetails.pricing || []).map((entry) => ({
+        standard: entry.standard,
+        price: Math.ceil(entry.price * 1.1),
+      }));
+      teacher.teacherDetails.fees.minFee = Math.ceil((teacher.teacherDetails.fees?.minFee || 0) * 1.1);
+      teacher.teacherDetails.fees.maxFee = Math.ceil((teacher.teacherDetails.fees?.maxFee || 0) * 1.1);
+    } else if (oldRating >= 4.0 && newRatingValue >= 4.5 && oldRating < 4.5) {
+      // Additional bump by 5% when upscale from 4.0-4.4 to 4.5+
+      teacher.teacherDetails.pricing = (teacher.teacherDetails.pricing || []).map((entry) => ({
+        standard: entry.standard,
+        price: Math.ceil(entry.price * 1.05),
+      }));
+      teacher.teacherDetails.fees.minFee = Math.ceil((teacher.teacherDetails.fees?.minFee || 0) * 1.05);
+      teacher.teacherDetails.fees.maxFee = Math.ceil((teacher.teacherDetails.fees?.maxFee || 0) * 1.05);
+    }
+
+    teacher.teacherDetails.averageRating = newRatingValue;
+    teacher.teacherDetails.totalReviews = totalRatingCount;
+    await teacher.save();
+
+    res.json({ message: "Rating submitted successfully", averageRating: newRatingValue });
   } catch (err) {
     console.error("Rate Teacher Error:", err);
     res.status(500).json({ message: err.message });

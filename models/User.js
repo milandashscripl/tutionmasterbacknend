@@ -36,7 +36,6 @@ const userSchema = new mongoose.Schema(
       public_id: String,
     },
 
-    // Simplified details for the "Coming Soon" phase
     studentDetails: {
       standard: String,
       board: String,
@@ -58,42 +57,44 @@ const userSchema = new mongoose.Schema(
       ],
     },
 
-    // Inside teacherDetails
-teacherDetails: {
-  teachingUpto: String,
-  subjectsExpert: [String],
-  distance: Number,
-  averageRating: { type: Number, default: 0 },
-  totalReviews: { type: Number, default: 0 },
-  hiredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  fees: {
-    // Fee range for monthly tuition in rupees
-    minFee: { type: Number, default: 0 },
-    maxFee: { type: Number, default: 0 },
-  },
-  isActive: { type: Boolean, default: true },
-  salaryDue: { type: Number, default: 0 },
-  paymentRecords: [
-    {
-      student: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      amount: Number,
-      paidAt: Date,
-      status: {
-        type: String,
-        enum: ['paid', 'pending', 'defaulted'],
-        default: 'paid',
+    teacherDetails: {
+      teachingUpto: String,
+      subjectsExpert: [String],
+      distance: Number,
+      averageRating: { type: Number, default: 0 },
+      totalReviews: { type: Number, default: 0 },
+      hiredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      fees: {
+        minFee: { type: Number, default: 0 },
+        maxFee: { type: Number, default: 0 },
       },
-      dueForMonth: String,
-    },
-  ],
+      pricing: [
+        {
+          standard: String,
+          price: { type: Number, default: 0 },
+        },
+      ],
+      isActive: { type: Boolean, default: true },
+      salaryDue: { type: Number, default: 0 },
+      paymentRecords: [
+        {
+          student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+          amount: Number,
+          paidAt: Date,
+          status: {
+            type: String,
+            enum: ["paid", "pending", "defaulted"],
+            default: "paid",
+          },
+          dueForMonth: String,
+        },
+      ],
+    }, // <--- THIS WAS MISSING
 
-    // Optional: Track interest for the "Coming Soon" launch
-    hasOptedInForLaunchAlerts: { type: Boolean, default: false }
+    // Optional: Track interest for the "Coming Soon" phase
+    hasOptedInForLaunchAlerts: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
-
-// Indexing for faster searches on main identifiers
-// Note: unique fields already have indexes, so no need to add explicit ones
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

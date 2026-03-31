@@ -41,6 +41,21 @@ const userSchema = new mongoose.Schema(
       standard: String,
       board: String,
       subjects: [String],
+      hiredTeachers: [
+        {
+          teacher: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+          hiredAt: { type: Date, default: Date.now },
+          monthlyFee: Number,
+          lastPaymentAt: Date,
+          nextDueAt: Date,
+          status: {
+            type: String,
+            enum: ["active", "pending", "defaulted"],
+            default: "active",
+          },
+          outstanding: { type: Number, default: 0 },
+        },
+      ],
     },
 
     // Inside teacherDetails
@@ -56,18 +71,21 @@ teacherDetails: {
     minFee: { type: Number, default: 0 },
     maxFee: { type: Number, default: 0 },
   },
-},
-
-    // User Preferences & App State
-    settings: {
-      theme: {
+  isActive: { type: Boolean, default: true },
+  salaryDue: { type: Number, default: 0 },
+  paymentRecords: [
+    {
+      student: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      amount: Number,
+      paidAt: Date,
+      status: {
         type: String,
-        enum: ["light", "ocean", "forest", "sunset", "amethyst", "rose", "emerald", "gold"],
-        default: "light",
+        enum: ['paid', 'pending', 'defaulted'],
+        default: 'paid',
       },
-      darkMode: { type: Boolean, default: false },
-      notifications: { type: Boolean, default: true },
+      dueForMonth: String,
     },
+  ],
 
     // Optional: Track interest for the "Coming Soon" launch
     hasOptedInForLaunchAlerts: { type: Boolean, default: false }

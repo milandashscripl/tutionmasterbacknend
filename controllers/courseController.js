@@ -140,11 +140,11 @@ export const addVideo = async (req, res) => {
 
     const { title, description, duration, type } = req.body;
 
-    // Validate required fields
-    if (!title || !description || !duration || !type) {
-      console.log("Missing required fields:", { title: !!title, description: !!description, duration: !!duration, type: !!type });
-      return res.status(400).json({ message: "All fields are required" });
-    }
+    // Relaxed validation: teacher may upload video with minimal metadata
+    const videoTitle = title || "Untitled Video";
+    const videoDescription = description || "";
+    const videoDuration = parseInt(duration) || 0;
+    const videoType = type || "long";
 
     const course = await Course.findById(req.params.courseId);
 
@@ -226,13 +226,14 @@ export const addVideo = async (req, res) => {
     }
 
     course.videos.push({
-      title,
-      description,
+      title: videoTitle,
+      description: videoDescription,
       url: videoUrl,
-      duration: isNaN(parseInt(duration)) ? 0 : parseInt(duration),
-      type,
+      duration: videoDuration,
+      type: videoType,
       thumbnail,
       uploadedAt: new Date(),
+      viewCount: 0,
     });
 
     await course.save();

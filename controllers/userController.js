@@ -145,24 +145,175 @@ export const getMatchedTeachers = async (req, res) => {
 // HIRING & RATINGS
 // ===============================
 
-// HIRE A TEACHER
+// HIRE AND PAY TEACHER (student pays first month fee)
 export const hireTeacher = async (req, res) => {
   try {
-    const { teacherId } = req.body;
-    const teacher = await User.findById(teacherId);
+    const { teacherId, amount } = req.body;
+    if (!teacherId || !amount || amount <= 0) {
+      return res.status(400).json({ message: "teacherId and positive amount are required" });
+    }
 
+    const teacher = await User.findById(teacherId);
     if (!teacher || teacher.registrationType !== "teacher") {
       return res.status(404).json({ message: "Teacher not found" });
     }
 
-    // Check if already hired to prevent duplicates
-    if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
-      teacher.teacherDetails.hiredBy.push(req.user._id);
-      await teacher.save();
+    // Ensure payment is not less than minimum teacher fee
+    const minFee = teacher.teacherDetails?.fees?.minFee || 0;
+    if (amount < minFee) {
+      return res.status(400).json({ message: `Amount must be at least teacher min fee ${minFee}` });
     }
 
-    res.json({ message: "Teacher hired successfully" });
+    // Create or update student hire record
+    const student = await User.findById(req.user._id);
+    const existingHire = student.studentDetails?.hiredTeachers?.find((item) => item.teacher.toString() === teacherId);
+
+    const nextDueAt = new Date();
+    nextDueAt.setMonth(nextDueAt.getMonth() + 1);
+
+    if (existingHire) {
+      existingHire.lastPaymentAt = new Date();
+      existingHire.monthlyFee = amount;
+      existingHire.nextDueAt = nextDueAt;
+      existingHire.status = "active";
+      existingHire.outstanding = 0;
+    } else {
+      student.studentDetails = student.studentDetails || {};
+      student.studentDetails.hiredTeachers = student.studentDetails.hiredTeachers || [];
+      student.studentDetails.hiredTeachers.push({
+        teacher: teacherId,
+        hiredAt: new Date(),
+        monthlyFee: amount,
+        lastPaymentAt: new Date(),
+        nextDueAt,
+        status: "active",
+        outstanding: 0,
+      });
+    }
+
+    // Mark teacher as hired and account payment info
+    if (!teacher.teacherDetails.hiredBy.includes(req.user._id)) {
+      teacher.teacherDetails.hiredBy.push(req.user._id);
+    }
+    teacher.teacherDetails.salaryDue = (teacher.teacherDetails.salaryDue || 0) + amount;
+    teacher.teacherDetails.isActive = true;
+    teacher.teacherDetails.paymentRecords = teacher.teacherDetails.paymentRecords || [];
+    teacher.teacherDetails.paymentRecords.push({
+      student: req.user._id,
+      amount,
+      paidAt: new Date(),
+      status: "paid",
+      dueForMonth: `${new Date().getFullYear()}-${new Date().getMonth() + 1}`,
+    });
+
+    await student.save();
+    await teacher.save();
+
+    res.json({ message: "Teacher hired and payment recorded", nextDueAt });
   } catch (err) {
+    console.error("Hire teacher error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ADMIN: track payers & defaulters
+export const getPaymentSummary = async (req, res) => {
+  try {
+    // Find all students with any hired teachers
+    const students = await User.find({
+      registrationType: "student",
+      "studentDetails.hiredTeachers": { $exists: true, $ne: [] },
+    }).select("fullName email studentDetails");
+
+    // Identify defaulters
+    const defaulters = [];
+    const now = new Date();
+    students.forEach((student) => {
+      (student.studentDetails?.hiredTeachers || []).forEach((ht) => {
+        if (ht.nextDueAt && new Date(ht.nextDueAt) < now && ht.status !== "active") {
+          defaulters.push({
+            studentId: student._id,
+            studentName: student.fullName,
+            teacherId: ht.teacher,
+            monthlyFee: ht.monthlyFee,
+            outstanding: ht.outstanding,
+            nextDueAt: ht.nextDueAt,
+            status: ht.status,
+          });
+        }
+      });
+    });
+
+    const teachers = await User.find({ registrationType: "teacher" }).select("fullName email teacherDetails");
+
+    res.json({ students, teachers, defaulters });
+  } catch (err) {
+    console.error("Payment summary error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ADMIN: activate/deactivate teacher based on payment status
+export const setTeacherActiveStatus = async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { isActive } = req.body;
+
+    const teacher = await User.findById(teacherId);
+    if (!teacher || teacher.registrationType !== "teacher") {
+      return res.status(404).json({ message: "Teacher not found" });
+    }
+
+    teacher.teacherDetails.isActive = !!isActive;
+    await teacher.save();
+
+    res.json({ message: `Teacher ${isActive ? "activated" : "deactivated"}` });
+  } catch (err) {
+    console.error("Set teacher status error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ADMIN: check payer status and update teacher activity accordingly
+export const checkPayers = async (req, res) => {
+  try {
+    const students = await User.find({
+      registrationType: "student",
+      "studentDetails.hiredTeachers": { $exists: true, $ne: [] },
+    });
+
+    const teacherStatus = new Map();
+    const now = new Date();
+
+    students.forEach((student) => {
+      (student.studentDetails?.hiredTeachers || []).forEach((ht) => {
+        const due = ht.nextDueAt ? new Date(ht.nextDueAt) : null;
+        const isDefaulted = due && due < now && ht.status !== "active";
+
+        // If any one student is defaulted for a teacher, teacher should be inactive
+        if (isDefaulted) {
+          teacherStatus.set(ht.teacher.toString(), false);
+        } else {
+          if (!teacherStatus.has(ht.teacher.toString())) {
+            teacherStatus.set(ht.teacher.toString(), true);
+          }
+        }
+      });
+    });
+
+    const updates = [];
+    for (const [teacherId, isActive] of teacherStatus.entries()) {
+      const teacher = await User.findById(teacherId);
+      if (teacher) {
+        teacher.teacherDetails.isActive = isActive;
+        await teacher.save();
+        updates.push({ teacherId, isActive });
+      }
+    }
+
+    res.json({ message: "Teacher active statuses updated", updates });
+  } catch (err) {
+    console.error("Check payers error:", err);
     res.status(500).json({ message: err.message });
   }
 };

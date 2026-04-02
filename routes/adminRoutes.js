@@ -17,8 +17,9 @@ import upload from "../midllewares/upload.js";
 
 const router = express.Router();
 
-// Public route (must be before middleware)
+// Public routes (must be before middleware)
 router.get("/settings/public", getSettings);
+router.get("/landing-page", getLandingPageSettings); // Public: Read landing page settings
 
 // Protected Admin routes
 router.use(protect);
@@ -30,8 +31,7 @@ router.delete("/reject/:userId", rejectUser);
 router.delete("/remove/:userId", removeUser);
 router.get("/users", getAllUsers);
 
-// Landing page settings routes
-router.get("/landing-page", getLandingPageSettings);
+// Landing page update (protected)
 router.put("/landing-page", upload.any(), updateLandingPageSettings);
 
 // ... your existing routes ...

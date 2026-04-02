@@ -207,37 +207,79 @@ export const updateLandingPageSettings = async (req, res) => {
       settings = new AppSettings();
     }
 
-    // Handle file uploads for images
-    if (req.files) {
-      for (const file of req.files) {
-        const fieldName = file.fieldname;
-        if (fieldName.startsWith('heroSlides[')) {
-          const match = fieldName.match(/heroSlides\[(\d+)\]\[(\w+)\]/);
-          if (match) {
-            const index = parseInt(match[1]);
-            const key = match[2];
-            if (key === 'image') {
-              // Upload to Cloudinary
-              const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-              const upload = await cloudinary.uploader.upload(dataUri, {
-                folder: "landing-page",
-              });
-              settings.heroSlides[index].imageUrl = upload.secure_url;
-              settings.heroSlides[index].public_id = upload.public_id;
-            }
-          }
-        } else if (fieldName === 'aboutSection[image]') {
-          const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+    // Parse the data JSON
+    let dataToUpdate = {};
+    if (req.body.data) {
+      dataToUpdate = JSON.parse(req.body.data);
+    }
+
+    // Handle hero slide image uploads
+    if (dataToUpdate.heroSlides && req.files) {
+      for (let idx = 0; idx < dataToUpdate.heroSlides.length; idx++) {
+        const slide = dataToUpdate.heroSlides[idx];
+        const fileKey = `heroImage_${idx}`;
+        
+        // Check if there's a file for this slide
+        const uploadedFile = req.files.find(f => f.fieldname === fileKey);
+        
+        if (uploadedFile) {
+          // Upload to Cloudinary
+          const dataUri = `data:${uploadedFile.mimetype};base64,${uploadedFile.buffer.toString("base64")}`;
           const upload = await cloudinary.uploader.upload(dataUri, {
-            folder: "landing-page",
+            folder: "landing-page/hero-slides",
           });
-          settings.aboutSection.imageUrl = upload.secure_url;
+          
+          // Ensure heroSlides is initialized
+          if (!settings.heroSlides) settings.heroSlides = [];
+          if (!settings.heroSlides[idx]) settings.heroSlides[idx] = {};
+          
+          settings.heroSlides[idx].title = slide.title || settings.heroSlides[idx].title;
+          settings.heroSlides[idx].subtitle = slide.subtitle || settings.heroSlides[idx].subtitle;
+          settings.heroSlides[idx].imageUrl = upload.secure_url;
+          settings.heroSlides[idx].public_id = upload.public_id;
+        } else if (slide.existingImageUrl) {
+          // Keep existing image
+          if (!settings.heroSlides) settings.heroSlides = [];
+          if (!settings.heroSlides[idx]) settings.heroSlides[idx] = {};
+          
+          settings.heroSlides[idx].title = slide.title || settings.heroSlides[idx].title;
+          settings.heroSlides[idx].subtitle = slide.subtitle || settings.heroSlides[idx].subtitle;
+          settings.heroSlides[idx].imageUrl = slide.existingImageUrl;
         }
       }
     }
 
-    // Update other fields from req.body
-    Object.assign(settings, req.body);
+    // Handle about section image upload
+    if (dataToUpdate.aboutSection) {
+      const aboutImageFile = req.files?.find(f => f.fieldname === 'aboutImage');
+      
+      if (aboutImageFile) {
+        const dataUri = `data:${aboutImageFile.mimetype};base64,${aboutImageFile.buffer.toString("base64")}`;
+        const upload = await cloudinary.uploader.upload(dataUri, {
+          folder: "landing-page/about",
+        });
+        
+        if (!settings.aboutSection) settings.aboutSection = {};
+        settings.aboutSection = {
+          ...settings.aboutSection,
+          ...dataToUpdate.aboutSection,
+          imageUrl: upload.secure_url
+        };
+      } else {
+        // Keep existing or use provided
+        if (!settings.aboutSection) settings.aboutSection = {};
+        settings.aboutSection = {
+          ...settings.aboutSection,
+          ...dataToUpdate.aboutSection
+        };
+      }
+    }
+
+    // Update other sections
+    if (dataToUpdate.howItWorks) settings.howItWorks = dataToUpdate.howItWorks;
+    if (dataToUpdate.testimonials) settings.testimonials = dataToUpdate.testimonials;
+    if (dataToUpdate.contactSection) settings.contactSection = dataToUpdate.contactSection;
+    if (dataToUpdate.footer) settings.footer = dataToUpdate.footer;
 
     await settings.save();
     res.json(settings);

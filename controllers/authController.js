@@ -145,7 +145,9 @@ export const registerVerify = async (req, res) => {
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const expected = getDevOtp() || user.otp;
+    // Check against stored OTP or dev OTP
+    const devOtp = getDevOtp();
+    const expected = devOtp || user.otp;
     if (otp !== expected) return res.status(400).json({ message: "Invalid OTP" });
 
     user.isVerified = true;

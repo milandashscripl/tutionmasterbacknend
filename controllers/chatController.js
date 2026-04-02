@@ -7,8 +7,8 @@ import User from "../models/User.js";
 // =============================
 export const getChats = async (req, res) => {
   try {
-    const chats = await Chat.find({ participants: req.user.id })
-      .populate("participants", "name email profileImage")
+    const chats = await Chat.find({ participants: { $in: [req.user._id] } })
+      .populate("participants", "fullName email profilePic")
       .populate("messages")
       .sort({ updatedAt: -1 });
 
@@ -26,8 +26,8 @@ export const createOrGetChat = async (req, res) => {
     const otherUserId = req.params.userId;
 
     let chat = await Chat.findOne({
-      participants: { $all: [req.user.id, otherUserId] },
-    }).populate("participants", "name email profileImage");
+      participants: { $all: [req.user._id, otherUserId] },
+    }).populate("participants", "fullName email profilePic");
 
     if (!chat) {
       const otherUser = await User.findById(otherUserId);
@@ -36,12 +36,12 @@ export const createOrGetChat = async (req, res) => {
       }
 
       chat = await Chat.create({
-        participants: [req.user.id, otherUserId],
-        chatName: otherUser.name,
+        participants: [req.user._id, otherUserId],
+        chatName: otherUser.fullName,
         messages: [],
       });
 
-      chat = await chat.populate("participants", "name email profileImage");
+      chat = await chat.populate("participants", "fullName email profilePic");
     }
 
     res.status(200).json(chat);
@@ -60,12 +60,12 @@ export const getMessages = async (req, res) => {
     const chat = await Chat.findById(chatId);
     if (!chat) return res.status(404).json({ message: "Chat not found" });
 
-    if (!chat.participants.some(p => p.toString() === req.user.id)) {
+    if (!chat.participants.some(p => p.toString() === req.user._id.toString())) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     const messages = await Message.find({ chatId })
-      .populate("sender", "name profileImage email")
+      .populate("sender", "fullName profilePic email")
       .sort({ timestamp: 1 });
 
     res.status(200).json(messages);
@@ -89,13 +89,13 @@ export const sendMessage = async (req, res) => {
     const chat = await Chat.findById(chatId);
     if (!chat) return res.status(404).json({ message: "Chat not found" });
 
-    if (!chat.participants.some(p => p.toString() === req.user.id)) {
+    if (!chat.participants.some(p => p.toString() === req.user._id.toString())) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     const message = await Message.create({
       chatId,
-      sender: req.user.id,
+      sender: req.user._id,
       content: content.trim(),
     });
 
@@ -104,7 +104,7 @@ export const sendMessage = async (req, res) => {
 
     const populatedMessage = await message.populate(
       "sender",
-      "name profileImage email"
+      "fullName profilePic email"
     );
 
     res.status(201).json(populatedMessage);
@@ -119,12 +119,12 @@ export const sendMessage = async (req, res) => {
 export const getChatById = async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.chatId)
-      .populate("participants", "name email profileImage")
+      .populate("participants", "fullName email profilePic")
       .populate("messages");
 
     if (!chat) return res.status(404).json({ message: "Chat not found" });
 
-    if (!chat.participants.some(p => p._id.toString() === req.user.id)) {
+    if (!chat.participants.some(p => p._id.toString() === req.user._id.toString())) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
@@ -144,12 +144,12 @@ export const markAsRead = async (req, res) => {
     const chat = await Chat.findById(chatId);
     if (!chat) return res.status(404).json({ message: "Chat not found" });
 
-    if (!chat.participants.some(p => p.toString() === req.user.id)) {
+    if (!chat.participants.some(p => p.toString() === req.user._id.toString())) {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
     await Message.updateMany(
-      { chatId, sender: { $ne: req.user.id }, read: false },
+      { chatId, sender: { $ne: req.user._id }, read: false },
       { read: true }
     );
 

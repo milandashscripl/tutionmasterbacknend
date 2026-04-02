@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import AppSettings from "../models/AppSettings.js";
 import Review from "../models/Review.js"; // Ensure this model exists in /models/Review.js
 import cloudinary from "../config/cloudinary.js";
 
@@ -200,6 +201,17 @@ export const hireTeacher = async (req, res) => {
       return res.status(400).json({ message: "Student standard not set in profile" });
     }
 
+    // Premium access guard for high-rated teachers
+    const settings = await AppSettings.findOne();
+    const highRatedThreshold = settings?.premiumConfig?.highRatedTeacherThreshold || 4.5;
+
+    const isTeacherHighRated = Number(teacher.teacherDetails?.averageRating || 0) >= highRatedThreshold;
+    const studentHasPremium = student.membership === "student_premium" && student.membershipExpiry && new Date(student.membershipExpiry) > new Date();
+
+    if (isTeacherHighRated && !studentHasPremium) {
+      return res.status(403).json({ message: "High-rated teacher hiring requires student premium membership." });
+    }
+
     // Determine base price for this student's standard using teacher-defined pricing
     const priceEntry = (teacher.teacherDetails?.pricing || []).find((p) => p.standard === studentStandard);
     let baseMonthlyFee = priceEntry?.price || teacher.teacherDetails?.fees?.minFee || 0;
@@ -366,6 +378,85 @@ export const checkPayers = async (req, res) => {
     res.json({ message: "Teacher active statuses updated", updates });
   } catch (err) {
     console.error("Check payers error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// PURCHASE PREMIUM MEMBERSHIP
+export const purchaseMembership = async (req, res) => {
+  try {
+    const { type, months = 1 } = req.body;
+
+    const validTypes = ["student_premium", "teacher_premium"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ message: "Invalid membership type" });
+    }
+
+    if ((type === "student_premium" && req.user.registrationType !== "student") ||
+        (type === "teacher_premium" && req.user.registrationType !== "teacher")) {
+      return res.status(400).json({ message: "Membership type mismatch with user role" });
+    }
+
+    const settings = await AppSettings.findOne();
+    const config = settings?.premiumConfig || {};
+    const price = type === "student_premium" ? config.studentPremiumPrice : config.teacherPremiumPrice;
+
+    if (price <= 0) {
+      return res.status(400).json({ message: "Premium membership is not configured by admin yet." });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    const durationDays = (config.premiumDurationDays || 30) * Number(months);
+    const now = new Date();
+    const currentExpiry = user.membershipExpiry && new Date(user.membershipExpiry) > now ? new Date(user.membershipExpiry) : now;
+
+    const newExpiry = new Date(currentExpiry);
+    newExpiry.setDate(newExpiry.getDate() + durationDays);
+
+    user.membership = type;
+    user.membershipExpiry = newExpiry;
+
+    await user.save();
+
+    res.json({ message: "Membership purchased successfully", membership: type, expiry: newExpiry, totalCost: price * Number(months) });
+  } catch (err) {
+    console.error("Purchase membership error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// TEACHER: SUGGEST HIGH-PAYING STUDENTS (requires teacher premium)
+export const getTeacherSuggestions = async (req, res) => {
+  try {
+    if (req.user.registrationType !== "teacher") {
+      return res.status(403).json({ message: "Only teachers can access suggestions" });
+    }
+
+    const isTeacherPremium = req.user.membership === "teacher_premium" && req.user.membershipExpiry && new Date(req.user.membershipExpiry) > new Date();
+    if (!isTeacherPremium) {
+      return res.status(403).json({ message: "Upgrade to teacher premium to view high-paying student suggestions." });
+    }
+
+    const teacherSubjects = req.user.teacherDetails?.subjectsExpert || [];
+    const studentCandidates = await User.find({
+      registrationType: "student",
+      isVerified: true,
+      isApproved: true,
+      "studentDetails.subjects": { $in: teacherSubjects }
+    }).select("fullName email phone studentDetails");
+
+    const sortedCandidates = studentCandidates
+      .map(student => ({
+        ...student.toObject(),
+        matchingSubjectsCount: (student.studentDetails?.subjects || []).filter(sub => teacherSubjects.includes(sub)).length
+      }))
+      .sort((a, b) => b.matchingSubjectsCount - a.matchingSubjectsCount)
+      .slice(0, 30);
+
+    res.json(sortedCandidates);
+  } catch (err) {
+    console.error("Get teacher suggestions error:", err);
     res.status(500).json({ message: err.message });
   }
 };

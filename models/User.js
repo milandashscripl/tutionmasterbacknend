@@ -19,6 +19,14 @@ const userSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     isApproved: { type: Boolean, default: false },
 
+    // Membership
+    membership: {
+      type: String,
+      enum: ["free", "student_premium", "teacher_premium"],
+      default: "free"
+    },
+    membershipExpiry: { type: Date },
+
     // Basic Info
     gender: String,
     age: Number,

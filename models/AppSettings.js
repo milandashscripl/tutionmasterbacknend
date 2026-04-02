@@ -16,6 +16,15 @@ const SettingsSchema = new mongoose.Schema({
     public_id: { type: String, default: "" }
   }],
 
+  // Premium membership configuration
+  premiumConfig: {
+    studentPremiumPrice: { type: Number, default: 500 },
+    teacherPremiumPrice: { type: Number, default: 500 },
+    highRatedTeacherThreshold: { type: Number, default: 4.5 },
+    highPayingStudentThreshold: { type: Number, default: 4.5 },
+    premiumDurationDays: { type: Number, default: 30 },
+  },
+
   aboutSection: {
     badge: { type: String, default: "Our Story" },
     title: { type: String, default: "Empowering Education in Western Odisha" },

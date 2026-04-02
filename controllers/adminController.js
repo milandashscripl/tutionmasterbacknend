@@ -188,6 +188,13 @@ export const getLandingPageSettings = async (req, res) => {
           location: "Western Odisha, India",
           email: "support@tuitionmaster.com"
         },
+        premiumConfig: {
+          studentPremiumPrice: 500,
+          teacherPremiumPrice: 500,
+          highRatedTeacherThreshold: 4.5,
+          highPayingStudentThreshold: 4.5,
+          premiumDurationDays: 30,
+        },
         footer: {
           copyright: "© 2026 TuitionMaster. All rights reserved."
         }
@@ -213,40 +220,56 @@ export const updateLandingPageSettings = async (req, res) => {
       dataToUpdate = JSON.parse(req.body.data);
     }
 
-    // Handle hero slide image uploads
-    if (dataToUpdate.heroSlides && req.files) {
+    // Handle hero slide changes (add, update, delete)
+    if (dataToUpdate.heroSlides) {
+      const existingSlides = settings.heroSlides || [];
+
+      // Delete removed slides from Cloudinary
+      if (existingSlides.length > dataToUpdate.heroSlides.length) {
+        const removedSlides = existingSlides.slice(dataToUpdate.heroSlides.length);
+        for (const removed of removedSlides) {
+          if (removed?.public_id) {
+            try {
+              await cloudinary.uploader.destroy(removed.public_id);
+            } catch (err) {
+              console.warn("Cloudinary destroy failed for removed slide:", err.message);
+            }
+          }
+        }
+      }
+
+      const updatedSlides = [];
+
       for (let idx = 0; idx < dataToUpdate.heroSlides.length; idx++) {
         const slide = dataToUpdate.heroSlides[idx];
         const fileKey = `heroImage_${idx}`;
-        
-        // Check if there's a file for this slide
-        const uploadedFile = req.files.find(f => f.fieldname === fileKey);
-        
+        const uploadedFile = req.files?.find((f) => f.fieldname === fileKey);
+
+        let finalImageUrl = slide.existingImageUrl || slide.imageUrl || existingSlides[idx]?.imageUrl;
+        let finalPublicId = existingSlides[idx]?.public_id || "";
+
         if (uploadedFile) {
-          // Upload to Cloudinary
           const dataUri = `data:${uploadedFile.mimetype};base64,${uploadedFile.buffer.toString("base64")}`;
           const upload = await cloudinary.uploader.upload(dataUri, {
             folder: "landing-page/hero-slides",
           });
-          
-          // Ensure heroSlides is initialized
-          if (!settings.heroSlides) settings.heroSlides = [];
-          if (!settings.heroSlides[idx]) settings.heroSlides[idx] = {};
-          
-          settings.heroSlides[idx].title = slide.title || settings.heroSlides[idx].title;
-          settings.heroSlides[idx].subtitle = slide.subtitle || settings.heroSlides[idx].subtitle;
-          settings.heroSlides[idx].imageUrl = upload.secure_url;
-          settings.heroSlides[idx].public_id = upload.public_id;
-        } else if (slide.existingImageUrl) {
-          // Keep existing image
-          if (!settings.heroSlides) settings.heroSlides = [];
-          if (!settings.heroSlides[idx]) settings.heroSlides[idx] = {};
-          
-          settings.heroSlides[idx].title = slide.title || settings.heroSlides[idx].title;
-          settings.heroSlides[idx].subtitle = slide.subtitle || settings.heroSlides[idx].subtitle;
-          settings.heroSlides[idx].imageUrl = slide.existingImageUrl;
+          finalImageUrl = upload.secure_url;
+          finalPublicId = upload.public_id;
         }
+
+        if (!finalImageUrl) {
+          finalImageUrl = "";
+        }
+
+        updatedSlides.push({
+          title: slide.title || existingSlides[idx]?.title || "",
+          subtitle: slide.subtitle || existingSlides[idx]?.subtitle || "",
+          imageUrl: finalImageUrl,
+          public_id: finalPublicId
+        });
       }
+
+      settings.heroSlides = updatedSlides;
     }
 
     // Handle about section image upload
@@ -273,6 +296,14 @@ export const updateLandingPageSettings = async (req, res) => {
           ...dataToUpdate.aboutSection
         };
       }
+    }
+
+    // Update premium system settings
+    if (dataToUpdate.premiumConfig) {
+      settings.premiumConfig = {
+        ...settings.premiumConfig,
+        ...dataToUpdate.premiumConfig,
+      };
     }
 
     // Update other sections

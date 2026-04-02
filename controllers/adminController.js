@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import AppSettings from "../models/AppSettings.js";
 import bcrypt from "bcryptjs";
+import cloudinary from "../config/cloudinary.js";
 
 
 export const getPendingUsers = async(req,res)=>{
@@ -201,18 +202,47 @@ export const getLandingPageSettings = async (req, res) => {
 // Update landing page settings
 export const updateLandingPageSettings = async (req, res) => {
   try {
-    const updateData = req.body;
     let settings = await AppSettings.findOne();
-
     if (!settings) {
-      settings = await AppSettings.create(updateData);
-    } else {
-      Object.assign(settings, updateData);
-      await settings.save();
+      settings = new AppSettings();
     }
 
+    // Handle file uploads for images
+    if (req.files) {
+      for (const file of req.files) {
+        const fieldName = file.fieldname;
+        if (fieldName.startsWith('heroSlides[')) {
+          const match = fieldName.match(/heroSlides\[(\d+)\]\[(\w+)\]/);
+          if (match) {
+            const index = parseInt(match[1]);
+            const key = match[2];
+            if (key === 'image') {
+              // Upload to Cloudinary
+              const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+              const upload = await cloudinary.uploader.upload(dataUri, {
+                folder: "landing-page",
+              });
+              settings.heroSlides[index].imageUrl = upload.secure_url;
+              settings.heroSlides[index].public_id = upload.public_id;
+            }
+          }
+        } else if (fieldName === 'aboutSection[image]') {
+          const dataUri = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+          const upload = await cloudinary.uploader.upload(dataUri, {
+            folder: "landing-page",
+          });
+          settings.aboutSection.imageUrl = upload.secure_url;
+        }
+      }
+    }
+
+    // Update other fields from req.body
+    Object.assign(settings, req.body);
+
+    await settings.save();
     res.json(settings);
   } catch (err) {
+    console.error("Update landing page settings error:", err);
     res.status(500).json({ message: err.message });
   }
 };

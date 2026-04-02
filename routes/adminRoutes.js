@@ -24,15 +24,16 @@ router.get("/settings/public", getSettings);
 router.use(protect);
 router.use(allowRoles("admin"));
 
+router.get("/pending", getPendingUsers);
+router.put("/approve/:userId", approveUser);
+router.delete("/reject/:userId", rejectUser);
+router.delete("/remove/:userId", removeUser);
 router.get("/users", getAllUsers);
 
 // Landing page settings routes
 router.get("/landing-page", getLandingPageSettings);
 router.put("/landing-page", upload.any(), updateLandingPageSettings);
 
-// Protected Admin routes
-router.use(protect);
-router.use(allowRoles("admin"));
 // ... your existing routes ...
 router.put("/settings/update", upload.single("logo"), updateSettings);
 export default router;

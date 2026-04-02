@@ -177,40 +177,18 @@ export const addVideo = async (req, res) => {
 
         videoUrl = upload.secure_url;
 
-        // Try to generate thumbnail separately
-        try {
-          // For thumbnail, we'll use a smaller version of the video
-          const thumbnailUpload = await cloudinary.uploader.upload(dataUri, {
-            folder: "course-videos/thumbnails",
-            resource_type: "video",
-            width: 300,
-            height: 200,
-            crop: "fill",
-            gravity: "auto",
-            format: "jpg",
-            quality: "auto"
-          });
-          thumbnail = thumbnailUpload.secure_url;
-          console.log("Thumbnail generated:", thumbnail);
-        } catch (thumbnailError) {
-          console.log("Thumbnail generation failed, using fallback:", thumbnailError.message);
-          // Fallback: try to get a frame from the video URL
-          try {
-            thumbnail = cloudinary.url(videoUrl, {
-              width: 300,
-              height: 200,
-              crop: "fill",
-              gravity: "auto",
-              format: "jpg",
-              quality: "auto"
-            });
-            console.log("Fallback thumbnail URL:", thumbnail);
-          } catch (fallbackError) {
-            console.log("Fallback thumbnail failed:", fallbackError.message);
-            // Final fallback: use the video URL as thumbnail
-            thumbnail = videoUrl.replace(/\.[^/.]+$/, ".jpg");
-          }
-        }
+        // Generate thumbnail from the uploaded video
+        thumbnail = cloudinary.url(upload.public_id, {
+          resource_type: "video",
+          width: 300,
+          height: 200,
+          crop: "fill",
+          gravity: "auto",
+          format: "jpg",
+          quality: "auto"
+        });
+
+        console.log("Thumbnail generated:", thumbnail);
 
         console.log("Cloudinary upload successful:", videoUrl);
       } catch (cloudinaryError) {

@@ -20,6 +20,7 @@ const SettingsSchema = new mongoose.Schema({
   premiumConfig: {
     studentPremiumPrice: { type: Number, default: 500 },
     teacherPremiumPrice: { type: Number, default: 500 },
+    normalTeacherMaxFee: { type: Number, default: 2500 },
     highRatedTeacherThreshold: { type: Number, default: 4.5 },
     highPayingStudentThreshold: { type: Number, default: 4.5 },
     premiumDurationDays: { type: Number, default: 30 },

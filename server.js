@@ -27,6 +27,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import leaveRoutes from "./routes/leaveRoutes.js";
 import chapterRoutes from "./routes/chapterRoutes.js";
+import bidRoutes from "./routes/bidRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -131,6 +132,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/leaves", leaveRoutes);
 app.use("/api/chapters", chapterRoutes);
+app.use("/api/bids", bidRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 API running perfectly");

@@ -483,28 +483,62 @@ export const getTeacherSuggestions = async (req, res) => {
       return res.status(403).json({ message: "Only teachers can access suggestions" });
     }
 
-    const isTeacherPremium = req.user.membership === "teacher_premium" && req.user.membershipExpiry && new Date(req.user.membershipExpiry) > new Date();
-    if (!isTeacherPremium) {
-      return res.status(403).json({ message: "Upgrade to teacher premium to view high-paying student suggestions." });
-    }
+    const teacher = req.user;
+    const isTeacherPremium = teacher.membership === "teacher_premium" && teacher.membershipExpiry && new Date(teacher.membershipExpiry) > new Date();
 
-    const teacherSubjects = req.user.teacherDetails?.subjectsExpert || [];
-    const studentCandidates = await User.find({
+    // Get all approved and verified students
+    const allStudents = await User.find({
       registrationType: "student",
       isVerified: true,
       isApproved: true,
-      "studentDetails.subjects": { $in: teacherSubjects }
-    }).select("fullName email phone studentDetails");
+    }).select("fullName email phone studentDetails membership profilePic");
 
-    const sortedCandidates = studentCandidates
-      .map(student => ({
+    // Filter out students who already have active teachers
+    const availableStudents = allStudents.filter(student => {
+      const hiredTeachers = student.studentDetails?.hiredTeachers || [];
+      return !hiredTeachers.some(ht => ht.status === "active");
+    });
+
+    // Add bidding eligibility and premium information
+    const studentsWithInfo = availableStudents.map(student => {
+      const studentIsPremium = student.membership === "student_premium" &&
+                              student.membershipExpiry &&
+                              new Date(student.membershipExpiry) > new Date();
+
+      return {
         ...student.toObject(),
-        matchingSubjectsCount: (student.studentDetails?.subjects || []).filter(sub => teacherSubjects.includes(sub)).length
-      }))
-      .sort((a, b) => b.matchingSubjectsCount - a.matchingSubjectsCount)
-      .slice(0, 30);
+        canBid: studentIsPremium ? isTeacherPremium : true, // Premium students require premium teachers
+        maxBidAmount: isTeacherPremium ? Infinity : 2000, // Premium teachers can bid any amount, others max 2000
+        isPremiumStudent: studentIsPremium,
+        requiresPremium: studentIsPremium,
+      };
+    });
 
-    res.json(sortedCandidates);
+    // Sort by premium students first (for premium teachers), then by subject matching
+    const sortedStudents = studentsWithInfo.sort((a, b) => {
+      // Premium students first for premium teachers
+      if (isTeacherPremium) {
+        if (a.isPremiumStudent && !b.isPremiumStudent) return -1;
+        if (!a.isPremiumStudent && b.isPremiumStudent) return 1;
+      }
+
+      // Then sort by subject matching
+      const teacherSubjects = teacher.teacherDetails?.subjectsExpert || [];
+      const aMatchingSubjects = (a.studentDetails?.subjects || []).filter(sub =>
+        teacherSubjects.includes(sub)
+      ).length;
+      const bMatchingSubjects = (b.studentDetails?.subjects || []).filter(sub =>
+        teacherSubjects.includes(sub)
+      ).length;
+
+      return bMatchingSubjects - aMatchingSubjects;
+    });
+
+    res.json({
+      students: sortedStudents.slice(0, 50), // Limit to 50 for performance
+      teacherPremium: isTeacherPremium,
+      totalAvailable: sortedStudents.length,
+    });
   } catch (err) {
     console.error("Get teacher suggestions error:", err);
     res.status(500).json({ message: err.message });

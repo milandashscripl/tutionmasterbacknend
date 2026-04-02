@@ -11,6 +11,16 @@ export const createCourse = async (req, res) => {
       return res.status(400).json({ message: "Title, description, and subject are required" });
     }
 
+    // Validate that only short videos are allowed
+    if (videos && videos.length > 0) {
+      const invalidVideos = videos.filter(video => video.type !== "short");
+      if (invalidVideos.length > 0) {
+        return res.status(400).json({
+          message: "Only short videos (like Instagram or YouTube shorts) are allowed for courses at this time"
+        });
+      }
+    }
+
     const newCourse = new Course({
       teacher: teacherId,
       title,
@@ -140,11 +150,18 @@ export const addVideo = async (req, res) => {
 
     const { title, description, duration, type } = req.body;
 
+    // Validate that only short videos are allowed
+    if (type !== "short") {
+      return res.status(400).json({
+        message: "Only short videos (like Instagram or YouTube shorts) are allowed for courses at this time"
+      });
+    }
+
     // Relaxed validation: teacher may upload video with minimal metadata
     const videoTitle = title || "Untitled Video";
     const videoDescription = description || "";
     const videoDuration = parseInt(duration) || 0;
-    const videoType = type || "long";
+    const videoType = "short"; // Force to short
 
     const course = await Course.findById(req.params.courseId);
 

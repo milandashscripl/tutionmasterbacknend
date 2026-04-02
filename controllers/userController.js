@@ -282,7 +282,7 @@ export const getPaymentSummary = async (req, res) => {
     const now = new Date();
     students.forEach((student) => {
       (student.studentDetails?.hiredTeachers || []).forEach((ht) => {
-        if (ht.nextDueAt && new Date(ht.nextDueAt) < now && ht.status !== "active") {
+        if (ht.nextDueAt && new Date(ht.nextDueAt) < now) {
           defaulters.push({
             studentId: student._id,
             studentName: student.fullName,
@@ -340,7 +340,7 @@ export const checkPayers = async (req, res) => {
     students.forEach((student) => {
       (student.studentDetails?.hiredTeachers || []).forEach((ht) => {
         const due = ht.nextDueAt ? new Date(ht.nextDueAt) : null;
-        const isDefaulted = due && due < now && ht.status !== "active";
+        const isDefaulted = due && due < now;
 
         // If any one student is defaulted for a teacher, teacher should be inactive
         if (isDefaulted) {

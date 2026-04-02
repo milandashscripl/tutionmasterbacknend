@@ -52,6 +52,16 @@ export const updateProfile = async (req, res) => {
     if (updates.teacherDetails) {
       try {
         const tDetails = JSON.parse(updates.teacherDetails);
+
+        const settings = await AppSettings.findOne();
+        const normalTeacherMaxFee = settings?.premiumConfig?.normalTeacherMaxFee || 2500;
+
+        const proposedMaxFee = Number(tDetails.maxFee || 0);
+
+        if (req.user.membership !== "teacher_premium" && proposedMaxFee > normalTeacherMaxFee) {
+          return res.status(400).json({ message: `Normal teachers cannot set max fee above ₹${normalTeacherMaxFee}. Purchase Teacher Premium.` });
+        }
+
         payload.teacherDetails = {
           ...req.user.teacherDetails?.toObject(), // Keep existing fields like averageRating/hiredBy
           teachingUpto: tDetails.teachingUpto,
@@ -60,7 +70,7 @@ export const updateProfile = async (req, res) => {
           pricing: tDetails.pricing, // This matches the string format from Register
           fees: {
             minFee: Number(tDetails.minFee),
-            maxFee: Number(tDetails.maxFee)
+            maxFee: proposedMaxFee
           }
         };
       } catch (e) {
@@ -76,7 +86,9 @@ export const updateProfile = async (req, res) => {
           ...req.user.studentDetails?.toObject(),
           standard: sDetails.standard,
           board: sDetails.board,
-          subjects: sDetails.subjects
+          subjects: sDetails.subjects,
+          desiredMinFee: Number(sDetails.desiredMinFee || 0),
+          desiredMaxFee: Number(sDetails.desiredMaxFee || 0),
         };
       } catch (e) {
         console.error("Student details parse error", e);
@@ -164,15 +176,40 @@ export const getMatchedTeachers = async (req, res) => {
       return res.status(400).json({ message: "Only students can get matched teachers" });
     }
 
-    const studentSubjects = req.user.studentDetails?.subjects || [];
+    const student = await User.findById(req.user._id);
+    const studentSubjects = student.studentDetails?.subjects || [];
+    const desiredMin = Number(student.studentDetails?.desiredMinFee || 0);
+    const desiredMax = Number(student.studentDetails?.desiredMaxFee || 0);
+    const isStudentPremium = student.membership === "student_premium" && student.membershipExpiry && new Date(student.membershipExpiry) > new Date();
 
-    const matchedTeachers = await User.find({
+    const matchFilter = {
       registrationType: "teacher",
       isApproved: true,
-      "teacherDetails.subjectsExpert": { $in: studentSubjects }
-    }).select("fullName profilePic teacherDetails address");
+      "teacherDetails.subjectsExpert": { $in: studentSubjects },
+      "teacherDetails.isActive": true,
+    };
 
-    res.json(matchedTeachers);
+    const normalTeachers = await User.find({
+      ...matchFilter,
+      membership: { $ne: "teacher_premium" },
+      ...(desiredMin && desiredMax ? {
+        "teacherDetails.fees.minFee": { $lte: desiredMax },
+        "teacherDetails.fees.maxFee": { $gte: desiredMin }
+      } : {})
+    }).select("fullName profilePic teacherDetails address membership");
+
+    const premiumTeachers = await User.find({
+      ...matchFilter,
+      membership: "teacher_premium"
+    }).select("fullName profilePic teacherDetails address membership");
+
+    const combined = [...premiumTeachers, ...normalTeachers];
+
+    if (!isStudentPremium) {
+      return res.json({ matched: combined, note: "Premium teachers are visible but require student premium for hiring." });
+    }
+
+    res.json({ matched: combined });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -201,15 +238,28 @@ export const hireTeacher = async (req, res) => {
       return res.status(400).json({ message: "Student standard not set in profile" });
     }
 
-    // Premium access guard for high-rated teachers
     const settings = await AppSettings.findOne();
     const highRatedThreshold = settings?.premiumConfig?.highRatedTeacherThreshold || 4.5;
-
-    const isTeacherHighRated = Number(teacher.teacherDetails?.averageRating || 0) >= highRatedThreshold;
     const studentHasPremium = student.membership === "student_premium" && student.membershipExpiry && new Date(student.membershipExpiry) > new Date();
 
+    const isTeacherHighRated = Number(teacher.teacherDetails?.averageRating || 0) >= highRatedThreshold;
     if (isTeacherHighRated && !studentHasPremium) {
       return res.status(403).json({ message: "High-rated teacher hiring requires student premium membership." });
+    }
+
+    if (teacher.membership === "teacher_premium" && !studentHasPremium) {
+      return res.status(403).json({ message: "Premium teachers can only be hired by premium students." });
+    }
+
+    const desiredMin = Number(student.studentDetails?.desiredMinFee || 0);
+    const desiredMax = Number(student.studentDetails?.desiredMaxFee || 0);
+
+    if (!studentHasPremium && desiredMin > 0 && desiredMax > 0) {
+      const teacherMin = teacher.teacherDetails?.fees?.minFee || 0;
+      const teacherMax = teacher.teacherDetails?.fees?.maxFee || 0;
+      if (teacherMax < desiredMin || teacherMin > desiredMax) {
+        return res.status(400).json({ message: "This teacher's fee range does not match your selected range." });
+      }
     }
 
     // Determine base price for this student's standard using teacher-defined pricing

@@ -23,6 +23,10 @@ import userRoutes from "./routes/userRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import attendanceRoutes from "./routes/attendanceRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import leaveRoutes from "./routes/leaveRoutes.js";
+import chapterRoutes from "./routes/chapterRoutes.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -123,6 +127,10 @@ app.use("/api/user", userRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/leaves", leaveRoutes);
+app.use("/api/chapters", chapterRoutes);
 
 app.get("/", (req, res) => {
   res.send("🚀 API running perfectly");

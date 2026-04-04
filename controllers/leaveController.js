@@ -290,3 +290,235 @@ export const cancelLeaveRequest = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// === STUDENT LEAVE FUNCTIONS ===
+
+// Create student leave request
+export const createStudentLeaveRequest = async (req, res) => {
+  try {
+    const { startDate, endDate, reason, description } = req.body;
+    const studentId = req.user._id;
+
+    // Calculate number of days
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    if (totalDays <= 0) {
+      return res.status(400).json({ message: "Invalid date range" });
+    }
+
+    // Get student details
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Find affected sessions
+    const affectedSessions = await Attendance.find({
+      student: studentId,
+      date: { $gte: start, $lte: end },
+      status: { $in: ['scheduled', 'completed'] }
+    }).populate('teacher', 'fullName email');
+
+    // Check free leave balance (2 per month)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const usedLeaves = await LeaveRequest.aggregate([
+      {
+        $match: {
+          user: studentId,
+          userType: 'student',
+          status: 'approved',
+          $expr: {
+            $and: [
+              { $eq: [{ $month: '$startDate' }, currentMonth + 1] },
+              { $eq: [{ $year: '$startDate' }, currentYear] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDays: { $sum: '$totalDays' }
+        }
+      }
+    ]);
+
+    const usedDays = usedLeaves.length > 0 ? usedLeaves[0].totalDays : 0;
+    const freeLeavesRemaining = Math.max(0, 2 - usedDays);
+    const paidLeaveDays = Math.max(0, totalDays - freeLeavesRemaining);
+
+    const leaveRequest = new LeaveRequest({
+      user: studentId,
+      userType: 'student',
+      type: 'student_leave',
+      startDate,
+      endDate,
+      totalDays,
+      reason,
+      description,
+      status: 'pending',
+      affectedSessions: affectedSessions.map(s => ({
+        date: s.date,
+        teacher: s.teacher._id,
+        status: 'cancelled'
+      })),
+      leaveCalculation: {
+        freeLeaveDays: Math.min(totalDays, freeLeavesRemaining),
+        paidLeaveDays,
+        totalPayableDays: paidLeaveDays,
+        dailyRate: 0 // Will be calculated based on teacher fee
+      }
+    });
+
+    await leaveRequest.save();
+
+    // Notify assigned teacher
+    if (student.hiredTeachers && student.hiredTeachers.length > 0) {
+      for (const hiring of student.hiredTeachers) {
+        await Notification.create({
+          recipient: hiring.teacher,
+          sender: studentId,
+          type: "student_leave",
+          title: "Student Leave Notice",
+          message: `Student ${student.fullName} has requested leave from ${new Date(startDate).toDateString()} to ${new Date(endDate).toDateString()}`,
+          relatedLeave: leaveRequest._id
+        });
+      }
+    }
+
+    res.status(201).json({
+      message: "Leave request submitted successfully",
+      leaveRequest: {
+        ...leaveRequest.toObject(),
+        affectedSessionsCount: affectedSessions.length
+      }
+    });
+  } catch (error) {
+    console.error("Create student leave request error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get student leave requests
+export const getStudentLeaveRequests = async (req, res) => {
+  try {
+    const studentId = req.user._id;
+    const { page = 1, limit = 10, status } = req.query;
+
+    let query = { user: studentId, userType: 'student' };
+    if (status) query.status = status;
+
+    const leaveRequests = await LeaveRequest.find(query)
+      .populate('affectedSessions.teacher', 'fullName email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await LeaveRequest.countDocuments(query);
+
+    res.json({
+      leaveRequests,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error("Get student leave requests error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get student leave balance
+export const getStudentLeaveBalance = async (req, res) => {
+  try {
+    const studentId = req.user._id;
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    // Calculate used leaves this month
+    const usedLeavesData = await LeaveRequest.aggregate([
+      {
+        $match: {
+          user: mongooseTypes.ObjectId(studentId),
+          userType: 'student',
+          status: 'approved',
+          $expr: {
+            $and: [
+              { $eq: [{ $month: '$startDate' }, currentMonth + 1] },
+              { $eq: [{ $year: '$startDate' }, currentYear] }
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalDays: { $sum: '$totalDays' }
+        }
+      }
+    ]);
+
+    const usedDays = usedLeavesData.length > 0 ? usedLeavesData[0].totalDays : 0;
+    const remainingDays = Math.max(0, 2 - usedDays);
+
+    // Get pending requests
+    const pendingRequests = await LeaveRequest.find({
+      user: studentId,
+      userType: 'student',
+      status: 'pending'
+    }).select('startDate endDate totalDays reason');
+
+    res.json({
+      balance: {
+        totalFreeLeaves: 2,
+        usedFreeLeaves: usedDays,
+        remainingFreeLeaves: remainingDays
+      },
+      pendingRequests,
+      month: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+    });
+  } catch (error) {
+    console.error("Get student leave balance error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Cancel student leave request
+export const cancelStudentLeaveRequest = async (req, res) => {
+  try {
+    const { leaveId } = req.params;
+    const studentId = req.user._id;
+
+    const leaveRequest = await LeaveRequest.findById(leaveId);
+    if (!leaveRequest) {
+      return res.status(404).json({ message: "Leave request not found" });
+    }
+
+    if (leaveRequest.user.toString() !== studentId.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (leaveRequest.status !== 'pending') {
+      return res.status(400).json({ message: "Cannot cancel processed leave request" });
+    }
+
+    leaveRequest.status = 'cancelled';
+    leaveRequest.updatedAt = new Date();
+    await leaveRequest.save();
+
+    res.json({
+      message: "Leave request cancelled successfully",
+      leaveRequest
+    });
+  } catch (error) {
+    console.error("Cancel student leave request error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};

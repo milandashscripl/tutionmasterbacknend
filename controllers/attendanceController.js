@@ -288,3 +288,212 @@ export const getAttendanceStats = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// === DAYWISE ATTENDANCE TRACKING ===
+
+// Mark teacher attendance (presence/absence) for the day
+export const markTeacherAttendance = async (req, res) => {
+  try {
+    const { studentId, date, status, notes } = req.body; // status: 'present', 'absent', 'cancelled'
+    const teacherId = req.user._id;
+
+    // Verify teacher-student relationship
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Check if teacher is hired by student
+    const isHired = student.hiredTeachers?.some(ht => ht.teacher.toString() === teacherId.toString());
+    if (!isHired) {
+      return res.status(403).json({ message: "Not authorized to mark attendance for this student" });
+    }
+
+    const attendanceDate = new Date(date);
+    attendanceDate.setHours(0, 0, 0, 0);
+
+    // Find or create attendance record
+    let attendance = await Attendance.findOne({
+      student: studentId,
+      teacher: teacherId,
+      date: attendanceDate
+    });
+
+    if (!attendance) {
+      attendance = new Attendance({
+        student: studentId,
+        teacher: teacherId,
+        date: attendanceDate,
+        status: status || 'scheduled'
+      });
+    }
+
+    // Update status
+    attendance.status = status;
+    attendance.notes = notes;
+    attendance.updatedAt = new Date();
+
+    await attendance.save();
+
+    res.json({
+      message: "Attendance marked successfully",
+      attendance
+    });
+  } catch (error) {
+    console.error("Mark teacher attendance error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get daywise attendance for teacher (presence/absence tracking)
+export const getTeacherDaywiseAttendance = async (req, res) => {
+  try {
+    const teacherId = req.user._id;
+    const { studentId, month, year } = req.query;
+
+    let query = { teacher: teacherId };
+    if (studentId) query.student = studentId;
+
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+
+    const attendances = await Attendance.find(query)
+      .populate('student', 'fullName email profilePic')
+      .sort({ date: -1 });
+
+    // Group by date and status
+    const daywiseStats = {};
+    attendances.forEach(att => {
+      const dateStr = new Date(att.date).toISOString().split('T')[0];
+      if (!daywiseStats[dateStr]) {
+        daywiseStats[dateStr] = {
+          date: dateStr,
+          present: 0,
+          absent: 0,
+          cancelled: 0,
+          total: 0,
+          records: []
+        };
+      }
+
+      daywiseStats[dateStr][att.status] = (daywiseStats[dateStr][att.status] || 0) + 1;
+      daywiseStats[dateStr].total += 1;
+      daywiseStats[dateStr].records.push({
+        student: att.student,
+        status: att.status,
+        notes: att.notes
+      });
+    });
+
+    res.json({
+      daywiseAttendance: Object.values(daywiseStats),
+      totalRecords: attendances.length,
+      filters: { studentId, month, year }
+    });
+  } catch (error) {
+    console.error("Get daywise attendance error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get student daywise attendance (self view)
+export const getStudentDaywiseAttendance = async (req, res) => {
+  try {
+    const studentId = req.user._id;
+    const { teacherId, month, year } = req.query;
+
+    let query = { student: studentId };
+    if (teacherId) query.teacher = teacherId;
+
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      endDate.setHours(23, 59, 59, 999);
+      query.date = { $gte: startDate, $lte: endDate };
+    }
+
+    const attendances = await Attendance.find(query)
+      .populate('teacher', 'fullName email profilePic')
+      .sort({ date: -1 });
+
+    // Calculate stats
+    const stats = {
+      totalDays: attendances.length,
+      presentDays: attendances.filter(a => a.status === 'present').length,
+      absentDays: attendances.filter(a => a.status === 'absent').length,
+      cancelledDays: attendances.filter(a => a.status === 'cancelled').length
+    };
+
+    stats.attendancePercentage = stats.totalDays > 0 
+      ? Math.round((stats.presentDays / stats.totalDays) * 100) 
+      : 0;
+
+    res.json({
+      daywiseAttendance: attendances,
+      stats,
+      month: `${year}-${String(month).padStart(2, '0')}`
+    });
+  } catch (error) {
+    console.error("Get student daywise attendance error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get attendance summary for a specific month
+export const getAttendanceSummary = async (req, res) => {
+  try {
+    const { month, year, studentId, teacherId } = req.query;
+    const userId = req.user._id;
+    const userRole = req.user.registrationType;
+
+    let matchQuery = {};
+
+    if (userRole === 'teacher') {
+      matchQuery.teacher = userId;
+      if (studentId) matchQuery.student = studentId;
+    } else if (userRole === 'student') {
+      matchQuery.student = userId;
+      if (teacherId) matchQuery.teacher = teacherId;
+    }
+
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0);
+      endDate.setHours(23, 59, 59, 999);
+      matchQuery.date = { $gte: startDate, $lte: endDate };
+    }
+
+    const summary = await Attendance.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const presentCount = summary.find(s => s._id === 'present')?.count || 0;
+    const absentCount = summary.find(s => s._id === 'absent')?.count || 0;
+    const cancelledCount = summary.find(s => s._id === 'cancelled')?.count || 0;
+    const totalCount = presentCount + absentCount + cancelledCount;
+
+    res.json({
+      summary: {
+        present: presentCount,
+        absent: absentCount,
+        cancelled: cancelledCount,
+        total: totalCount,
+        attendancePercentage: totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0
+      },
+      month: `${year}-${String(month).padStart(2, '0')}`
+    });
+  } catch (error) {
+    console.error("Get attendance summary error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};

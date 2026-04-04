@@ -5,7 +5,8 @@ import {
   getStudentPayments,
   getTeacherPayments,
   getPaymentStats,
-  markPaymentOverdue
+  markPaymentOverdue,
+  createPremiumPayment
 } from "../controllers/paymentController.js";
 import { protect } from "../midllewares/authMiddleware.js";
 import { allowRoles } from "../midllewares/roleMiddleware.js";
@@ -22,6 +23,7 @@ router.put("/:paymentId/overdue", allowRoles("teacher"), markPaymentOverdue);
 
 // Student routes
 router.post("/process", allowRoles("student"), processPayment);
+router.post("/premium", allowRoles("student", "teacher"), createPremiumPayment);
 router.get("/student", allowRoles("student"), getStudentPayments);
 
 // Common routes

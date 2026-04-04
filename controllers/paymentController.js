@@ -98,14 +98,19 @@ export const createPayment = async (req, res) => {
 export const processPayment = async (req, res) => {
   try {
     const { paymentId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-    const studentId = req.user.id;
+    const userId = req.user.id;
 
     const payment = await Payment.findById(paymentId);
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    if (payment.student.toString() !== studentId) {
+    // Check if user is authorized (either student or the payment belongs to them)
+    const isAuthorized = payment.student?.toString() === userId ||
+                        payment.teacher?.toString() === userId ||
+                        payment.type?.includes('premium');
+
+    if (!isAuthorized) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -123,21 +128,54 @@ export const processPayment = async (req, res) => {
 
     await payment.save();
 
-    // Create notification for teacher
-    await Notification.create({
-      recipient: payment.teacher,
-      sender: studentId,
-      type: "payment_received",
-      title: "Payment Received",
-      message: `Payment of ₹${payment.amount} received from student`,
-      relatedPayment: payment._id
-    });
+    // Handle premium membership activation
+    if (payment.type === 'student_premium' || payment.type === 'teacher_premium') {
+      const user = await User.findById(userId);
+      if (user) {
+        // Get premium duration from settings
+        const settings = await AppSettings.findOne();
+        const durationDays = settings?.premiumConfig?.premiumDurationDays || 30;
 
-    // Emit real-time notification
-    io.to(`user_${payment.teacher}`).emit('notification', {
-      type: 'payment_received',
-      message: `Payment of ₹${payment.amount} received`
-    });
+        user.premiumStatus = {
+          isActive: true,
+          activatedAt: new Date(),
+          expiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+          type: payment.type
+        };
+
+        // Add payment record to user
+        user.paymentRecords = user.paymentRecords || [];
+        user.paymentRecords.push({
+          paymentId: payment._id,
+          amount: payment.amount,
+          type: payment.type,
+          date: new Date()
+        });
+
+        await user.save();
+      }
+    }
+
+    // Create notification for recipient
+    const recipientId = payment.teacher || payment.student;
+    const senderId = payment.student || payment.teacher;
+
+    if (recipientId && senderId) {
+      await Notification.create({
+        recipient: recipientId,
+        sender: senderId,
+        type: "payment_received",
+        title: "Payment Received",
+        message: `Payment of ₹${payment.amount} received`,
+        relatedPayment: payment._id
+      });
+
+      // Emit real-time notification
+      io.to(`user_${recipientId}`).emit('notification', {
+        type: 'payment_received',
+        message: `Payment of ₹${payment.amount} received`
+      });
+    }
 
     res.json({
       message: "Payment processed successfully",
@@ -145,6 +183,45 @@ export const processPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("Process payment error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Create premium payment
+export const createPremiumPayment = async (req, res) => {
+  try {
+    const { type, amount } = req.body;
+    const userId = req.user.id;
+
+    // Get premium pricing from settings
+    const settings = await AppSettings.findOne();
+    let premiumAmount = amount;
+
+    if (!premiumAmount) {
+      if (type === 'student_premium') {
+        premiumAmount = settings?.premiumConfig?.studentPremiumPrice || 500;
+      } else if (type === 'teacher_premium') {
+        premiumAmount = settings?.premiumConfig?.teacherPremiumPrice || 500;
+      }
+    }
+
+    const payment = new Payment({
+      student: type === 'student_premium' ? userId : null,
+      teacher: type === 'teacher_premium' ? userId : null,
+      amount: premiumAmount,
+      type,
+      description: `${type.replace('_', ' ').toUpperCase()} membership activation`,
+      status: 'pending'
+    });
+
+    await payment.save();
+
+    res.status(201).json({
+      message: "Premium payment created successfully",
+      payment
+    });
+  } catch (error) {
+    console.error("Create premium payment error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
